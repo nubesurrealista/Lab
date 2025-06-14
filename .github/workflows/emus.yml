@@ -1,0 +1,105 @@
+name: Build & Sign EX Emu APKs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Sign
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ["GBA.emu", "GBC.emu", "MD.emu", "MSX.emu", "NEO.emu", "NES.emu", "NGP.emu", "PCE.emu", "Snes9x", "Swan.emu"]
+      fail-fast: false
+
+    steps:
+      - name: Clone emu-ex-plus-alpha source
+        uses: actions/checkout@v4
+        with:
+          repository: nubesurrealista/emu-ex-plus-alpha
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake autopoint bash binutils-arm-linux-gnueabi \
+            cmake file gawk gettext git libtool libtool-bin make \
+            nasm pkg-config unzip wget
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare environment
+        run: |
+          mkdir imagine-sdk
+          mkdir EX-Emulators
+          NDK_VERSION='r29-beta3'
+          wget "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
+          unzip android-ndk-${NDK_VERSION}-linux.zip
+          rm android-ndk-${NDK_VERSION}-linux.zip
+          mv android-ndk-${NDK_VERSION} android-ndk
+          echo "ANDROID_NDK_PATH=${{ github.workspace }}/android-ndk" >> $GITHUB_ENV
+          echo "EMUFRAMEWORK_PATH=${{ github.workspace }}/EmuFramework" >> $GITHUB_ENV
+          echo "IMAGINE_PATH=${{ github.workspace }}/imagine" >> $GITHUB_ENV
+          echo "IMAGINE_SDK_PATH=${{ github.workspace }}/imagine-sdk" >> $GITHUB_ENV
+          echo "COMMIT_PREFIX=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_ENV
+
+      - name: Build Imagine prerequisites
+        working-directory: imagine/bundle/all
+        run: |
+          chmod +x ./makeAll-android.sh
+          ./makeAll-android.sh install
+        shell: bash
+
+      - name: Build Imagine/EmuFramework
+        run: |
+          make -f $IMAGINE_PATH/android-release.mk install V=1 -j$(nproc)
+          make -f $EMUFRAMEWORK_PATH/android-release.mk config -j$(nproc)
+          make -f $EMUFRAMEWORK_PATH/android-release.mk install V=1 -j$(nproc)
+
+      - name: Build ${{ matrix.image }}
+        run: |
+          case "${{ matrix.image }}" in
+            Snes9x)
+              cd Snes9x
+              make -f android-release.mk android-apk V=1 -j$(nproc)
+              cp target/android-release/build/outputs/apk/release/Snes9xEXPlus-release.apk "../EX-Emulators/Snes9xEXPlus-${COMMIT_PREFIX}-unsigned.apk"
+              ;;
+            *)
+              cd "${{ matrix.image }}"
+              make -f android-release.mk android-apk V=1 -j$(nproc)
+              APK_NAME="$(ls target/android-release/build/outputs/apk/release/*-release.apk | head -n1)"
+              cp "$APK_NAME" "../EX-Emulators/$(basename "$APK_NAME" .apk)-${COMMIT_PREFIX}-unsigned.apk"
+              ;;
+          esac
+
+      - name: Decode keystore for signing
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > nube.p12
+
+      - name: Sign APK
+        run: |
+          for APK in EX-Emulators/*-unsigned.apk; do
+            OUT_APK="${APK%-unsigned.apk}-signed.apk"
+            "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
+              --ks nube.p12 \
+              --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
+              --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+              --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
+              --out "$OUT_APK" \
+              "$APK"
+          done
+
+      - name: Upload artifact APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ matrix.image }}
+          path: EX-Emulators/*-signed.apk
+          if-no-files-found: warn

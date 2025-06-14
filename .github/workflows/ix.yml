@@ -1,0 +1,56 @@
+name: Build InstallerX
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@v4
+        with:
+          repository: nubesurrealista/InstallerX-Revived
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+          cache: gradle
+
+      - name: Setup Gradle Permissions
+        run: chmod +x ./gradlew
+
+      - name: Configure Signing
+        run: |
+          mkdir -p keystore
+          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > keystore/nube.p12
+          cat <<EOF > keystore.properties
+          storeFile=keystore/nube.p12
+          storePassword=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
+          keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
+          EOF
+
+      - name: Build Stable ARMv7 APK
+        run: ./gradlew assembleStableRelease -PabiFilters=armeabi-v7a
+
+      - name: Verify APK Output
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/Stable/release -name '*armeabi-v7a*.apk' | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::APK not found in app/build/outputs/apk/Stable/release/"
+            ls -R app/build/outputs/apk
+            exit 1
+          fi
+          echo "APK generated at: $APK_PATH"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InstallerX-ARMv7
+          path: app/build/outputs/apk/Stable/release/*armeabi-v7a*.apk
+          if-no-files-found: error

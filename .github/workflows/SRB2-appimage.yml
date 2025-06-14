@@ -1,0 +1,51 @@
+name: Build SRB2 AppImage
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-srb2:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            make git debianutils coreutils findutils file \
+            ncurses-bin curl gawk stow \
+            libfuse2 zlib1g patchelf libgdk-pixbuf2.0-bin \
+            flatpak flatpak-builder
+
+      - name: Verificar Docker
+        run: |
+          docker version
+
+      - name: Clonar e instalar srb2bld
+        run: |
+          git clone https://github.com/Bijman/srb2bld.git
+          cd srb2bld
+          sudo make install
+
+      - name: Verificar instalación de srb2bld
+        run: |
+          export TERM=xterm
+          srb2bld --help
+
+      - name: Construir AppImage de SRB2 (todo predeterminado)
+        run: |
+          export TERM=xterm
+          printf "1\n\n\n\n" | srb2bld --appimage
+
+      - name: Buscar AppImage generado
+        id: find-appimage
+        run: |
+          APPIMAGE_PATH=$(find $HOME -name "*.AppImage" | head -n1)
+          echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
+          echo "AppImage generado: $APPIMAGE_PATH"
+
+      - name: Subir artefacto AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: SRB2-AppImage
+          path: ${{ env.APPIMAGE_PATH }}

@@ -1,0 +1,65 @@
+name: Build Dolphin Emulator DEB Package
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: devuan/devuan:daedalus
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update -y
+          apt-get install -y \
+            build-essential \
+            git \
+            cmake \
+            ffmpeg \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libevdev-dev \
+            libusb-1.0-0-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libpangocairo-1.0-0 \
+            qt6-base-private-dev \
+            libqt6svg6-dev \
+            libbluetooth-dev \
+            libasound2-dev \
+            libpulse-dev \
+            libgl1-mesa-dev \
+            libcurl4-openssl-dev \
+            libeudev-dev \
+            curl \
+            dpkg-dev \
+            file
+
+      - name: Clone Dolphin repository
+        run: git clone https://github.com/dolphin-emu/dolphin
+
+      - name: Update submodules
+        working-directory: dolphin
+        run: |
+          git -c submodule."Externals/Qt".update=none \
+          -c submodule."Externals/FFmpeg-bin".update=none \
+          -c submodule."Externals/libadrenotools".update=none \
+          submodule update --init --recursive \
+          && git pull --recurse-submodules
+
+      - name: Configure and build
+        working-directory: dolphin
+        run: |
+          mkdir build && cd build
+          cmake .. -DCPACK_PACKAGE_CONTACT="nube"
+          make -j$(nproc)
+          cpack -G DEB
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dolphin-deb
+          path: dolphin/build/*.deb
