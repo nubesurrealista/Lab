@@ -16,14 +16,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain and targets
         run: |
           rustup update
           rustup target add armv7-linux-androideabi
           rustup target add aarch64-linux-android
           rustup target add x86_64-linux-android
-      - name: Set up Android NDK
-        uses: android-actions/setup-ndk@v2
+      - name: Setup Android SDK and NDK
+        uses: android-actions/setup-android@v3
         with:
           ndk-version: 27.2.12479018
       - name: Decode keystore
@@ -36,24 +36,22 @@ jobs:
           cd gitnote/android
 
 
-          # Añadir ARMv7 a los targets de Rust
+          # Add ARMv7 to Rust targets
 
           sed -i 's/targets = listOf("arm64", "x86_64")/targets = listOf("arm", "arm64", "x86_64")/' build.gradle.kts
 
 
-          # Actualizar signing config para usar nuestros secrets
+          # Update signing config
 
-          sed -i 's/keyAlias = System.getenv("KEY_ALIAS")/keyAlias = System.getenv("KEY_ALIAS") ?: "${{ secrets.RELEASE_KEY_ALIAS }}"/' build.gradle.kts
-
-          sed -i 's/keyPassword = System.getenv("KEY_PASSWORD")/keyPassword = System.getenv("KEY_PASSWORD") ?: "${{ secrets.RELEASE_KEY_PASSWORD }}"/' build.gradle.kts
-
-          sed -i 's/storePassword = System.getenv("STORE_PASSWORD")/storePassword = System.getenv("STORE_PASSWORD") ?: "${{ secrets.RELEASE_KEYSTORE_PASSWORD }}"/' build.gradle.kts
+          sed -i 's|storeFile = file("key.jks")|storeFile = file("${System.getenv("KEYSTORE_PATH") ?: "key.jks"}")|' build.gradle.kts
       - name: Build APK
         env:
+          KEYSTORE_PATH: ./app/key.jks
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk
+          ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
         run: |
           cd gitnote/android
           ./gradlew assembleRelease --stacktrace
