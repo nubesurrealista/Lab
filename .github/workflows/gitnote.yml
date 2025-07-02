@@ -28,38 +28,44 @@ jobs:
           ndk-version: 27.2.12479018
       - name: Decode keystore
         run: >
-          mkdir -p gitnote/android/app
+          mkdir -p gitnote/app
 
-          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > gitnote/android/app/key.jks
+          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > gitnote/app/key.jks
       - name: Modify build.gradle.kts for ARMv7
         run: >
-          cd gitnote/android
+          cd gitnote/app
 
 
           # Add ARMv7 to Rust targets
 
-          sed -i 's/targets = listOf("arm64", "x86_64")/targets = listOf("arm", "arm64", "x86_64")/' build.gradle.kts
+          sed -i 's/targets = listOf("arm64", "x86_64")/targets = listOf("armv7", "arm64", "x86_64")/' build.gradle.kts
 
 
           # Update signing config
 
           sed -i 's|storeFile = file("key.jks")|storeFile = file("${System.getenv("KEYSTORE_PATH") ?: "key.jks"}")|' build.gradle.kts
+
+          sed -i 's/keyAlias = System.getenv("KEY_ALIAS")/keyAlias = System.getenv("KEY_ALIAS") ?: "${{ secrets.RELEASE_KEY_ALIAS }}"/' build.gradle.kts
+
+          sed -i 's/keyPassword = System.getenv("KEY_PASSWORD")/keyPassword = System.getenv("KEY_PASSWORD") ?: "${{ secrets.RELEASE_KEY_PASSWORD }}"/' build.gradle.kts
+
+          sed -i 's/storePassword = System.getenv("STORE_PASSWORD")/storePassword = System.getenv("STORE_PASSWORD") ?: "${{ secrets.RELEASE_KEYSTORE_PASSWORD }}"/' build.gradle.kts
       - name: Build APK
         env:
-          KEYSTORE_PATH: ./app/key.jks
+          KEYSTORE_PATH: ./key.jks
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk
           ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
         run: |
-          cd gitnote/android
-          ./gradlew assembleRelease --stacktrace
+          cd gitnote
+          ./gradlew :app:assembleRelease --stacktrace
       - name: Collect APKs
         run: >
           mkdir -p apk-out
 
-          find gitnote/android/app/build/outputs/apk -type f -name "*.apk" -exec cp {} apk-out/ \;
+          find gitnote/app/build/outputs/apk -type f -name "*.apk" -exec cp {} apk-out/ \;
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
