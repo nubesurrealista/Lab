@@ -1,5 +1,5 @@
 ---
-name: Build & Sign URLSanitizer APK
+name: Build & Sign URLSanitizer APK (external signing)
 on:
   workflow_dispatch: null
 jobs:
@@ -16,48 +16,47 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Decode keystore
-        run: >
-          mkdir -p android_URLSanitizer/app
-
-          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > android_URLSanitizer/app/nube.p12
-      - name: Create release signing properties
-        run: >
-          echo "storeFile=nube.p12" >
-          android_URLSanitizer/app/release-signing.properties
-
-          echo "storePassword=${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" >> android_URLSanitizer/app/release-signing.properties
-
-          echo "keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}" >> android_URLSanitizer/app/release-signing.properties
-
-          echo "keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}" >> android_URLSanitizer/app/release-signing.properties
-      - name: Ensure Gradle Wrapper is executable
-        run: chmod +x ./android_URLSanitizer/gradlew
-      - name: Modify build.gradle for signing
-        run: >
-          cd android_URLSanitizer/app
-
-          if ! grep -q 'signingConfigs' build.gradle; then
-            echo "Injecting signingConfigs..."
-            perl -i -pe 's/(android\s*\{)/$1\n    signingConfigs {\n        release {\n            storeFile file("nube.p12")\n            storePassword System.getenv("RELEASE_KEYSTORE_PASSWORD")\n            keyAlias System.getenv("RELEASE_KEY_ALIAS")\n            keyPassword System.getenv("RELEASE_KEY_PASSWORD")\n        }\n    }/' build.gradle
-          fi
-
-          if ! grep -q 'signingConfig signingConfigs.release' build.gradle; then
-            echo "Configuring release signing..."
-            perl -i -pe 's/(buildTypes\s*\{)/$1\n        release {\n            signingConfig signingConfigs.release\n        }/' build.gradle
-          fi
-      - name: Build release APK
+      - name: Build unsigned release APK
         run: |
           cd android_URLSanitizer
-          ./gradlew :app:assembleRelease --stacktrace
-      - name: Collect APKs
+          ./gradlew assembleRelease --stacktrace
+      - name: List APKs (unsigned)
+        run: find android_URLSanitizer/app/build/outputs/apk -type f -name "*.apk"
+      - name: Sign APK using apksigner
         run: >
-          mkdir -p apk-out
+          # Busca el APK release (puede variar según el proyecto)
 
-          find android_URLSanitizer/app/build/outputs/apk -type f -name "*.apk" -exec cp {} apk-out/ \;
-      - name: Upload APK artifact
+          APK_PATH=$(find android_URLSanitizer/app/build/outputs/apk/release -name "*.apk" ! -name "*unaligned*" | head -n 1)
+
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::No se encontró el APK release"
+            exit 1
+          fi
+
+          echo "APK encontrado en: $APK_PATH"
+
+
+          # Decodificar keystore temporalmente
+
+          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > /tmp/nube.p12
+
+
+          # Firmar el APK
+
+          "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
+            --ks /tmp/nube.p12 \
+            --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
+            --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
+            --out url-sanitizer-release-signed.apk \
+            "$APK_PATH"
+
+          # Limpiar keystore
+
+          rm -f /tmp/nube.p12
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: urlsanitizer-release-apk
-          path: apk-out/*.apk
-          if-no-files-found: warn
+          path: url-sanitizer-release-signed.apk
+          if-no-files-found: error
