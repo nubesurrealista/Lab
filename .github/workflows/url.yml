@@ -1,5 +1,5 @@
 ---
-name: Build & Sign URLSanitizer APK (external signing)
+name: Build & Sign URLSanitizer APK (External Signing)
 on:
   workflow_dispatch: null
 jobs:
@@ -16,47 +16,45 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Make gradlew executable
+        run: chmod +x ./android_URLSanitizer/gradlew
       - name: Build unsigned release APK
         run: |
           cd android_URLSanitizer
           ./gradlew assembleRelease --stacktrace
-      - name: List APKs (unsigned)
-        run: find android_URLSanitizer/app/build/outputs/apk -type f -name "*.apk"
-      - name: Sign APK using apksigner
+      - name: Find unsigned APK
+        id: find_apk
         run: >
-          # Busca el APK release (puede variar según el proyecto)
-
-          APK_PATH=$(find android_URLSanitizer/app/build/outputs/apk/release -name "*.apk" ! -name "*unaligned*" | head -n 1)
+          APK_PATH=$(find android_URLSanitizer/app/build/outputs/apk/release -name
+          "*.apk" ! -name "*unaligned*" | head -n 1)
 
           if [ ! -f "$APK_PATH" ]; then
-            echo "::error::No se encontró el APK release"
+            echo "::error::APK not found!"
             exit 1
           fi
 
-          echo "APK encontrado en: $APK_PATH"
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
 
-
-          # Decodificar keystore temporalmente
-
+          echo "Found APK: $APK_PATH"
+      - name: Sign APK with apksigner
+        run: >
           echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > /tmp/nube.p12
 
-
-          # Firmar el APK
 
           "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
             --ks /tmp/nube.p12 \
             --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
             --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
             --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
-            --out url-sanitizer-release-signed.apk \
-            "$APK_PATH"
-
-          # Limpiar keystore
+            --out url-sanitizer-signed.apk \
+            "${{ steps.find_apk.outputs.APK_PATH }}"
 
           rm -f /tmp/nube.p12
-      - name: Upload signed APK artifact
+
+          echo "APK signed successfully!"
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: urlsanitizer-release-apk
-          path: url-sanitizer-release-signed.apk
+          name: urlsanitizer-release
+          path: url-sanitizer-signed.apk
           if-no-files-found: error
