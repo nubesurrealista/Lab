@@ -1,5 +1,5 @@
 ---
-name: Mega Multi-File Processor
+name: Mega Folder Processor
 on:
   workflow_dispatch: null
 jobs:
@@ -10,60 +10,60 @@ jobs:
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
           sudo apt-get update
-          sudo apt-get install -y megatools ffmpeg unrar zip pv
+          sudo apt-get install -y megatools ffmpeg unrar zip
           echo "🛠️ Dependencias instaladas"
 
-      - name: 2 - Download multiple files from Mega
+      - name: 2 - Download only root RAR files from Mega folder
         run: |
           mkdir -p payload
           cd payload
           
-          # Convertir el secreto en array (soporta múltiples URLs separadas por espacios o saltos de línea)
-          IFS=$'\n' read -d '' -r -a MEGA_LINKS <<< "$(echo "${{ secrets.SOURCE_ENTRY }}" | tr ' ' '\n')"
+          echo "📥 Descargando solo archivos RAR de la carpeta Mega..."
+          megatools dl --no-progress --path . \
+            --include-type "file" \
+            --pattern "*.rar" \
+            "${{ secrets.SOURCE_ENTRY }}"
           
-          echo "📥 Descargando ${#MEGA_LINKS[@]} archivos desde Mega..."
-          
-          for LINK in "${MEGA_LINKS[@]}"; do
-            if [ -n "$LINK" ]; then
-              echo "⬇️ Descargando archivo..."
-              megatools dl --path . "$LINK"
-              echo "✅ Descarga parcial completada"
-            fi
-          done
-          
-          echo "✔️ Todas las descargas completadas"
+          echo "✅ Descarga completada"
           ls -lh
 
-      - name: 3 - Process RAR files if needed
+      - name: 3 - Verify RAR downloads
         run: |
           cd payload
-          # Buscar archivos RAR (por si los links descargaron partes comprimidas)
-          RAR_FILES=$(find . -type f -iname "*.rar")
-          
-          if [ -n "$RAR_FILES" ]; then
-            echo "🧩 Encontrados archivos RAR, extrayendo..."
-            for RAR_FILE in $RAR_FILES; do
-              unrar x -o+ "$RAR_FILE"
-            done
-            echo "🎉 Extracción completada"
+          RAR_COUNT=$(find . -maxdepth 1 -type f -iname "*.rar" | wc -l)
+          if [ "$RAR_COUNT" -eq 0 ]; then
+            echo "❌ Error: No se encontraron archivos RAR descargados"
+            exit 1
+          else
+            echo "✔️ Encontrados $RAR_COUNT archivos RAR"
           fi
 
-      - name: 4 - Find and process video
+      - name: 4 - Extract RAR files
+        run: |
+          cd payload
+          echo "🧩 Extrayendo archivos RAR..."
+          find . -maxdepth 1 -type f -iname "*.rar" -exec unrar x -o+ {} \;
+          echo "🎉 Extracción completada"
+          ls -lh
+
+      - name: 5 - Find and process video
         run: >
           cd payload
 
           FILE=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
 
-          if [ -z "$FILE" ]; then exit 1; fi
+          if [ -z "$FILE" ]; then
+            echo "❌ No se encontró ningún archivo de video válido"
+            echo "Contenido del directorio:"
+            ls -R
+            exit 1
+          fi
 
           NAME=$(basename "$FILE")
-
           BASE="${NAME%.*}"
 
           echo "::add-mask::$FILE"
-
           echo "::add-mask::$NAME"
-
           echo "::add-mask::$BASE"
 
           ffmpeg -i "$FILE" \
@@ -74,17 +74,17 @@ jobs:
             -c:s copy \
             "../${BASE}_720p.mkv"
 
-      - name: 5 - Package result
+      - name: 6 - Package result
         run: |
-          mkdir final
-          mv ./*.mkv final/
+          mkdir -p final
+          mv payload/*.mkv final/
           cd final
           echo "📦 Creando ZIP protegido..."
           zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip *
           cd ..
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
 
-      - name: 6 - Upload artifact
+      - name: 7 - Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: processed-bundle
