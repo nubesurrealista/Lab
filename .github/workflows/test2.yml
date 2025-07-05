@@ -1,5 +1,5 @@
 ---
-name: Mega Processor (Arch Linux Container)
+name: Mega Processor with RAR Filtering
 on:
   workflow_dispatch: null
 jobs:
@@ -9,33 +9,57 @@ jobs:
       image: archlinux:latest
       options: --volume ${{ github.workspace }}/data:/data
     steps:
-      # Paso 1: Configuración del contenedor
-      - name: Setup Arch Linux
+      - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm --needed base-devel git \
-            megatools ffmpeg unrar zip tor torsocks nc tree jq pv
-          
-          # Configurar Tor
-          echo 'ControlPort 9051\nSocksPort 9050\nLog notice stdout' >> /etc/tor/torrc
-          systemctl start tor
-          echo "🌐 IP: $(torsocks curl -s ifconfig.me)"
+          pacman -Syu --noconfirm --needed base-devel git gnu-netcat \
+            megatools ffmpeg unrar zip tor torsocks pv
 
-      # Paso 2: Procesamiento en directorio compartido
-      - name: Process Files
+      - name: Configure Tor
+        run: |
+          echo "SocksPort 9050" >> /etc/tor/torrc
+          echo "ControlPort 9051" >> /etc/tor/torrc
+          systemctl start tor
+          sleep 3
+          torsocks curl -s ifconfig.me
+
+      - name: Download and filter RAR files
         run: |
           mkdir -p /data/payload
           cd /data/payload
           
-          # Rotar IP Tor
+          # Rotate Tor IP
           echo -e "AUTHENTICATE \"\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc -w 5 localhost 9051
           
-          # Descargar
+          # Download from Mega
           torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}"
           
-          # Procesar RARs
-          find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec unrar x -o+ {} \;
+          echo "=== Contenido original ==="
+          tree -L 2
           
-          # Convertir video
+          # Filtrar solo archivos RAR en raíz que coincidan con el patrón
+          echo "=== Filtrando archivos ==="
+          mkdir -p /data/filtered
+          find . -maxdepth 1 -type f \( -iname "K9 and Company.part*.rar" -o -iname "K9 and Company.part*" \) -exec mv {} /data/filtered/ \;
+          
+          # Limpiar todo excepto los archivos filtrados
+          rm -rf *
+          mv /data/filtered/* .
+          rmdir /data/filtered
+          
+          echo "=== Archivos filtrados ==="
+          ls -lh
+
+      - name: Extract and process
+        run: |
+          cd /data/payload
+          
+          # Extraer todos los archivos RAR encontrados
+          for rar in *.rar; do
+            echo "Extrayendo: $rar"
+            unrar x -o+ "$rar"
+          done
+          
+          # Buscar y procesar video
           VIDEO=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
           ffmpeg -i "$VIDEO" \
             -vf "scale=-2:720" \
@@ -44,16 +68,14 @@ jobs:
             -c:s copy \
             "/data/output_720p.mkv"
 
-      # Paso 3: Empaquetado y subida
-      - name: Package Result
+      - name: Package result
         run: |
           cd /data
           zip -P "${{ secrets.ZIP_PASSWORD }}" final_output.zip output_720p.mkv
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
 
-      - name: Upload Artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: processed-video
-          path: ${{ github.workspace }}/data/final_output.zip
-          retention-days: 1
+          path: /data/final_output.zip
