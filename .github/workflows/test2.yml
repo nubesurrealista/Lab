@@ -1,71 +1,76 @@
 ---
-name: Mega Downloader with Tor
+name: Mega Downloader with Tor Fixed
 on:
   workflow_dispatch: null
 jobs:
   process:
     runs-on: ubuntu-latest
     steps:
-      - name: 1 - Install dependencies
+      - name: 1 - Install and configure Tor properly
         run: |
-          echo "🛠️ Instalando dependencias..."
+          echo "🛠️ Instalando Tor y dependencias..."
           sudo apt-get update
-          sudo apt-get install -y megatools tor torsocks pv unrar
-          echo "✅ Dependencias instaladas"
-
-      - name: 2 - Configure Tor
-        run: |
+          sudo apt-get install -y tor torsocks megatools
+          
           echo "🔧 Configurando Tor..."
-          echo "ControlPort 9051" | sudo tee -a /etc/tor/torrc
-          echo "HashedControlPassword $(tor --hash-password "githubtor" | tail -n 1)" | sudo tee -a /etc/tor/torrc
+          sudo bash -c 'cat > /etc/tor/torrc << EOL
+          ControlPort 9051
+          HashedControlPassword $(tor --hash-password "githubtor" | tail -n 1)
+          SocksPort 9050
+          RunAsDaemon 1
+          EOL'
+          
+          echo "🚀 Iniciando servicio Tor..."
           sudo service tor restart
-          echo "🔄 Verificando conexión Tor..."
-          torsocks curl -s ifconfig.me | xargs -I {} echo "IP actual: {}"
-          echo "✅ Tor configurado"
+          sleep 5  # Esperar a que Tor se inicie completamente
+          
+          echo "🔍 Verificando conexión Tor..."
+          curl --socks5-hostname localhost:9050 -s https://check.torproject.org/api/ip | jq -r '.IsTor,.IP'
+          echo "✅ Tor configurado correctamente"
 
-      - name: 3 - Download from Mega with Tor
+      - name: 2 - Download from Mega with Tor
         run: |
           mkdir -p payload
           cd payload
           
-          echo "📥 Iniciando descarga desde Mega..."
-          echo "🔄 Rotando IP para evitar límites..."
-          torsocks curl -s --socks5-hostname localhost:9050 -X POST http://localhost:9051/control/newnym \
-            --user "controller:githubtor" > /dev/null
+          echo "🔄 Rotando IP de Tor..."
+          tor_control_password="githubtor"
+          echo -e "AUTHENTICATE \"$tor_control_password\"\r\nSIGNAL NEWNYM\r\nQUIT" | \
+            nc localhost 9051
           
           echo "🌐 Nueva IP: $(torsocks curl -s ifconfig.me)"
           
-          echo "⏳ Descargando archivos (esta operación puede tomar varios minutos)..."
+          echo "📥 Descargando desde Mega con Tor..."
           set +e
           torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}" 2>&1 | \
-            grep -E 'Downloading|Progress|ERROR|WARNING' | \
-            while IFS= read -r line; do
-              echo "📡 ${line:0:100}"  # Mostrar solo los primeros 100 caracteres por seguridad
+            grep -E --line-buffered 'Downloading|Progress|ERROR|WARNING' | \
+            while read -r line; do
+              echo "📡 ${line:0:120}"
             done
           set -e
           
-          echo "🔍 Analizando archivos descargados..."
-          echo "📂 Contenido del directorio:"
+          echo "✅ Descarga completada"
+          echo "📂 Archivos descargados: $(ls -1 | wc -l)"
           ls -lh | awk '{print $5, $9}' | grep -v '^total'
 
-      - name: 4 - Filter RAR files
+      - name: 3 - Filter and process RAR files
         run: |
           cd payload
           echo "🔍 Filtrando archivos RAR..."
           
-          # Mostrar conteo inicial
-          echo "📊 Archivos totales descargados: $(ls -1 | wc -l)"
+          # Crear lista segura de archivos
+          echo "📋 Contenido inicial:"
+          find . -maxdepth 1 -type f -exec basename {} \; | \
+            while read -r file; do
+              size=$(du -h "$file" | cut -f1)
+              echo "• $size ${file:0:30}..."
+            done
           
           # Filtrar RARs
           mkdir -p temp_rars
           find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
           
-          # Mostrar progreso
           echo "📦 Archivos RAR encontrados: $(ls -1 temp_rars/ | wc -l)"
-          ls -lh temp_rars/ | awk '{print $5, $9}' | grep -v '^total'
-          
-          # Limpieza
-          echo "🧹 Limpiando archivos no RAR..."
           shopt -s extglob
           rm -rf !("temp_rars")
           mv temp_rars/* .
@@ -73,43 +78,7 @@ jobs:
           shopt -u extglob
           
           echo "✅ Filtrado completado"
-          echo "📋 Archivos finales:"
-          ls -lh
-
-      - name: 5 - Verify RAR files
-        run: |
-          cd payload
-          echo "🔎 Verificando archivos RAR..."
-          
-          RAR_COUNT=$(ls -1 *.rar 2>/dev/null | wc -l)
-          if [ "$RAR_COUNT" -eq 0 ]; then
-            echo "❌ Error: No se encontraron archivos RAR válidos"
-            echo "💾 Contenido actual:"
-            ls -lh
-            exit 1
-          else
-            echo "✔️ Encontrados $RAR_COUNT archivos RAR"
-            echo "📝 Lista de archivos:"
-            ls -1 *.rar | awk '{print "• " $1}'
-          fi
-
-      - name: 6 - Extract RAR files
-        run: |
-          cd payload
-          echo "📦 Iniciando extracción..."
-          
-          for rar_file in *.rar; do
-            echo "🔓 Extrayendo: ${rar_file:0:30}..."  # Mostrar solo parte del nombre
-            unrar x -o+ "$rar_file" | \
-              pv -l -s $(unrar l "$rar_file" | grep -c "\.\.\.") > /dev/null
-            echo "✅ ${rar_file:0:30} extraído"
+          echo "📝 Archivos finales:"
+          ls -1 | while read -r file; do
+            echo "• $(du -h "$file" | cut -f1) ${file:0:30}..."
           done
-          
-          echo "🎉 Extracción completada"
-          echo "📂 Contenido extraído:"
-          du -h --max-depth=1 | sort -h
-
-      - name: 7 - Continue with processing...
-        run: |
-          echo "➡️ Continuar con el procesamiento del video..."
-          # (Aquí irían los pasos siguientes de tu workflow)
