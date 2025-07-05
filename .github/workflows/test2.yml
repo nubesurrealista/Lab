@@ -1,5 +1,5 @@
 ---
-name: Mega Folder Processor
+name: Mega RAR Processor
 on:
   workflow_dispatch: null
 jobs:
@@ -10,29 +10,42 @@ jobs:
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
           sudo apt-get update
-          sudo apt-get install -y megatools ffmpeg unrar zip
-          echo "🛠️ Dependencias instaladas"
+          sudo apt-get install -y megatools ffmpeg unrar zip pv
+          echo "🛠️ Dependencias instaladas correctamente"
 
-      - name: 2 - Download only root RAR files from Mega folder
+      - name: 2 - Download and filter RAR files from Mega folder
         run: |
           mkdir -p payload
           cd payload
           
-          echo "📥 Descargando solo archivos RAR de la carpeta Mega..."
-          megatools dl --no-progress --path . \
-            --include-type "file" \
-            --pattern "*.rar" \
-            "${{ secrets.SOURCE_ENTRY }}"
+          echo "📥 Descargando carpeta Mega completa..."
+          megatools dl --no-progress --path . "${{ secrets.SOURCE_ENTRY }}"
           
-          echo "✅ Descarga completada"
+          echo "🔍 Filtrando solo archivos RAR en la raíz..."
+          # Crear directorio temporal para RARs
+          mkdir -p temp_rars
+          
+          # Mover todos los RARs de la raíz al directorio temporal
+          find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
+          
+          # Limpiar todo excepto los RARs
+          shopt -s extglob
+          rm -rf !("temp_rars")
+          mv temp_rars/* .
+          rmdir temp_rars
+          shopt -u extglob
+          
+          echo "✅ Archivos RAR filtrados:"
           ls -lh
 
       - name: 3 - Verify RAR downloads
         run: |
           cd payload
-          RAR_COUNT=$(find . -maxdepth 1 -type f -iname "*.rar" | wc -l)
+          RAR_COUNT=$(find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) | wc -l)
           if [ "$RAR_COUNT" -eq 0 ]; then
-            echo "❌ Error: No se encontraron archivos RAR descargados"
+            echo "❌ Error: No se encontraron archivos RAR en la raíz"
+            echo "Contenido descargado:"
+            ls -R
             exit 1
           else
             echo "✔️ Encontrados $RAR_COUNT archivos RAR"
@@ -42,50 +55,63 @@ jobs:
         run: |
           cd payload
           echo "🧩 Extrayendo archivos RAR..."
-          find . -maxdepth 1 -type f -iname "*.rar" -exec unrar x -o+ {} \;
+          
+          # Extraer cada archivo RAR encontrado
+          for rar_file in *.rar; do
+            echo "📦 Extrayendo $rar_file..."
+            unrar x -o+ "$rar_file" | pv -l > /dev/null
+          done
+          
           echo "🎉 Extracción completada"
+          echo "📂 Contenido extraído:"
           ls -lh
 
-      - name: 5 - Find and process video
-        run: >
+      - name: 5 - Find and process video file
+        run: |
           cd payload
-
+          echo "🎬 Buscando archivos de video..."
+          
           FILE=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
-
+          
           if [ -z "$FILE" ]; then
-            echo "❌ No se encontró ningún archivo de video válido"
+            echo "❌ No se encontraron archivos de video válidos"
             echo "Contenido del directorio:"
             ls -R
             exit 1
           fi
-
+          
           NAME=$(basename "$FILE")
           BASE="${NAME%.*}"
-
+          
           echo "::add-mask::$FILE"
           echo "::add-mask::$NAME"
           echo "::add-mask::$BASE"
-
+          
+          echo "🔄 Procesando video: [nombre_ofuscado]"
+          mkdir -p ../processed
+          
           ffmpeg -i "$FILE" \
             -vf "scale=-2:720" \
             -map 0 \
-            -c:v libx264 -preset fast -crf 23 -threads 2 \
+            -c:v libx264 -preset fast -crf 23 \
             -c:a aac -b:a 128k \
             -c:s copy \
-            "../${BASE}_720p.mkv"
+            "../processed/${BASE}_720p.mkv" 2>&1 | grep "frame="
+            
+          echo "✅ Video procesado correctamente"
 
-      - name: 6 - Package result
+      - name: 6 - Create protected ZIP
         run: |
-          mkdir -p final
-          mv payload/*.mkv final/
-          cd final
-          echo "📦 Creando ZIP protegido..."
-          zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip *
-          cd ..
+          echo "📦 Creando archivo ZIP protegido..."
+          cd processed
+          zip -P "${{ secrets.ZIP_PASSWORD }}" ../final_output.zip *
+          
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
+          echo "📊 Tamaño del archivo final:"
+          ls -lh ../final_output.zip
 
       - name: 7 - Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: processed-bundle
-          path: test.zip
+          name: processed-video
+          path: final_output.zip
