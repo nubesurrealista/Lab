@@ -1,5 +1,5 @@
 ---
-name: Mega Processor with RAR Filtering
+name: Mega Processor (Arch Linux + AUR)
 on:
   workflow_dispatch: null
 jobs:
@@ -9,73 +9,93 @@ jobs:
       image: archlinux:latest
       options: --volume ${{ github.workspace }}/data:/data
     steps:
-      - name: Install dependencies
+      # Paso 1: Instalación desde AUR
+      - name: Install megatools and dependencies
         run: |
+          # Actualizar sistema e instalar dependencias básicas
           pacman -Syu --noconfirm --needed base-devel git gnu-netcat \
-            megatools ffmpeg unrar zip tor torsocks pv
+            ffmpeg unrar zip tor torsocks pv
+          
+          # Instalar megatools desde AUR
+          echo "📦 Instalando megatools desde AUR..."
+          git clone https://aur.archlinux.org/megatools.git
+          cd megatools
+          makepkg -si --noconfirm
+          cd ..
+          rm -rf megatools
+          
+          # Verificar instalación
+          echo "✅ Versiones instaladas:"
+          megatools --version
+          ffmpeg -version | head -n 1
 
+      # Paso 2: Configuración de Tor
       - name: Configure Tor
         run: |
+          echo "🔧 Configurando Tor..."
           echo "SocksPort 9050" >> /etc/tor/torrc
           echo "ControlPort 9051" >> /etc/tor/torrc
           systemctl start tor
           sleep 3
-          torsocks curl -s ifconfig.me
+          echo "🌐 IP Tor: $(torsocks curl -s ifconfig.me)"
 
-      - name: Download and filter RAR files
+      # Paso 3: Descarga y filtrado
+      - name: Download and filter RARs
         run: |
           mkdir -p /data/payload
           cd /data/payload
           
-          # Rotate Tor IP
+          # Rotar IP Tor
           echo -e "AUTHENTICATE \"\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc -w 5 localhost 9051
           
-          # Download from Mega
+          # Descargar archivos
+          echo "📥 Descargando desde Mega..."
           torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}"
           
-          echo "=== Contenido original ==="
-          tree -L 2
-          
           # Filtrar solo archivos RAR en raíz que coincidan con el patrón
-          echo "=== Filtrando archivos ==="
+          echo "🔍 Filtrando 'K9 and Company.part*.rar'..."
           mkdir -p /data/filtered
           find . -maxdepth 1 -type f \( -iname "K9 and Company.part*.rar" -o -iname "K9 and Company.part*" \) -exec mv {} /data/filtered/ \;
           
-          # Limpiar todo excepto los archivos filtrados
+          # Limpiar y dejar solo los archivos relevantes
           rm -rf *
           mv /data/filtered/* .
           rmdir /data/filtered
           
-          echo "=== Archivos filtrados ==="
+          echo "✅ Archivos filtrados:"
           ls -lh
 
-      - name: Extract and process
+      # Paso 4: Extracción y conversión
+      - name: Extract and convert
         run: |
           cd /data/payload
           
-          # Extraer todos los archivos RAR encontrados
+          # Extraer archivos RAR
           for rar in *.rar; do
-            echo "Extrayendo: $rar"
+            echo "📦 Extrayendo $rar..."
             unrar x -o+ "$rar"
           done
           
-          # Buscar y procesar video
+          # Buscar y convertir video
           VIDEO=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
           ffmpeg -i "$VIDEO" \
             -vf "scale=-2:720" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -b:a 128k \
             -c:s copy \
-            "/data/output_720p.mkv"
+            "/data/output_720p.mkv" 2>&1 | grep -E 'frame=|speed='
 
+      # Paso 5: Empaquetado
       - name: Package result
         run: |
           cd /data
           zip -P "${{ secrets.ZIP_PASSWORD }}" final_output.zip output_720p.mkv
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
+          echo "📦 Tamaño final: $(ls -lh final_output.zip | awk '{print $5}')"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: processed-video
           path: /data/final_output.zip
+          retention-days: 1
