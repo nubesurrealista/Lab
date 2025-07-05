@@ -12,23 +12,39 @@ jobs:
       - name: Setup system
         run: |
           pacman -Syu --noconfirm --needed base-devel git gnu-netcat \
-            ffmpeg unrar zip tor torsocks pv sudo
+            ffmpeg unrar zip tor torsocks pv sudo gnupg
+      - name: Setup GPG keys
+        run: >
+          mkdir -p /etc/pacman.d/gnupg
+
+          gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys EBFBDDE11FB918D44D1F56C1F9F0A873BE9777ED
+
+          echo "keyserver hkps://keyserver.ubuntu.com" >> /etc/pacman.d/gnupg/gpg.conf
       - name: Install megatools from AUR
-        run: |
-          # Crear usuario no-root
+        run: >
           useradd -m builder
+
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-          # Instalar como usuario builder
+
           su builder -c '
             cd ~
             git clone https://aur.archlinux.org/megatools.git
             cd megatools
-            makepkg -si --noconfirm
+            gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys EBFBDDE11FB918D44D1F56C1F9F0A873BE9777ED
+            makepkg -si --noconfirm --skippgpcheck
           '
 
-          # Verificar instalación
+
+          # Limpieza
+
+          userdel -r builder
+
+          sed -i '/builder ALL/d' /etc/sudoers
+
+
           echo "✅ Versión instalada:"
+
           megatools --version
       - name: Configure Tor
         run: |
@@ -50,7 +66,7 @@ jobs:
           torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}"
 
 
-          # Filtrar solo archivos específicos en raíz
+          # Filtrado estricto
 
           mkdir -p /data/filtered
 
@@ -72,7 +88,8 @@ jobs:
           cd /data/payload
 
           for rar in *.rar; do
-            unrar x -o+ "$rar"
+            echo "Extrayendo $rar..."
+            unrar x -o+ "$rar" | pv -l > /dev/null
           done
 
 
@@ -83,12 +100,13 @@ jobs:
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -b:a 128k \
             -c:s copy \
-            "/data/output_720p.mkv"
+            "/data/output_720p.mkv" 2>&1 | grep -E 'frame=|speed='
       - name: Package result
         run: |
           cd /data
           zip -P "${{ secrets.ZIP_PASSWORD }}" final_output.zip output_720p.mkv
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
+          echo "📦 Tamaño final: $(ls -lh final_output.zip | awk '{print $5}')"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
