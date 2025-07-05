@@ -1,5 +1,5 @@
 ---
-name: Mega Media Processor
+name: Mega Multi-File Processor
 on:
   workflow_dispatch: null
 jobs:
@@ -10,18 +10,45 @@ jobs:
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
           sudo apt-get update
-          sudo apt-get install -y megatools ffmpeg unrar zip
-          echo "🛠️  Dependencias instaladas"
+          sudo apt-get install -y megatools ffmpeg unrar zip pv
+          echo "🛠️ Dependencias instaladas"
 
-      - name: 2 - Download from Mega
+      - name: 2 - Download multiple files from Mega
         run: |
           mkdir -p payload
-          echo "📥 Descargando desde Mega..."
-          megatools dl --path ./payload "${{ secrets.SOURCE_ENTRY }}"
-          echo "✅ Descarga completada"
-          ls -lh payload/
+          cd payload
+          
+          # Convertir el secreto en array (soporta múltiples URLs separadas por espacios o saltos de línea)
+          IFS=$'\n' read -d '' -r -a MEGA_LINKS <<< "$(echo "${{ secrets.SOURCE_ENTRY }}" | tr ' ' '\n')"
+          
+          echo "📥 Descargando ${#MEGA_LINKS[@]} archivos desde Mega..."
+          
+          for LINK in "${MEGA_LINKS[@]}"; do
+            if [ -n "$LINK" ]; then
+              echo "⬇️ Descargando archivo..."
+              megatools dl --path . "$LINK"
+              echo "✅ Descarga parcial completada"
+            fi
+          done
+          
+          echo "✔️ Todas las descargas completadas"
+          ls -lh
 
-      - name: 3 - Find and process video
+      - name: 3 - Process RAR files if needed
+        run: |
+          cd payload
+          # Buscar archivos RAR (por si los links descargaron partes comprimidas)
+          RAR_FILES=$(find . -type f -iname "*.rar")
+          
+          if [ -n "$RAR_FILES" ]; then
+            echo "🧩 Encontrados archivos RAR, extrayendo..."
+            for RAR_FILE in $RAR_FILES; do
+              unrar x -o+ "$RAR_FILE"
+            done
+            echo "🎉 Extracción completada"
+          fi
+
+      - name: 4 - Find and process video
         run: >
           cd payload
 
@@ -47,7 +74,7 @@ jobs:
             -c:s copy \
             "../${BASE}_720p.mkv"
 
-      - name: 4 - Package result
+      - name: 5 - Package result
         run: |
           mkdir final
           mv ./*.mkv final/
@@ -57,7 +84,7 @@ jobs:
           cd ..
           echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
 
-      - name: 5 - Upload artifact
+      - name: 6 - Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: processed-bundle
