@@ -1,0 +1,64 @@
+---
+name: Mega Media Processor
+on:
+  workflow_dispatch: null
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1 - Setup environment
+        run: |
+          echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
+          sudo apt-get update
+          sudo apt-get install -y megatools ffmpeg unrar zip
+          echo "🛠️  Dependencias instaladas"
+
+      - name: 2 - Download from Mega
+        run: |
+          mkdir -p payload
+          echo "📥 Descargando desde Mega..."
+          megatools dl --path ./payload "${{ secrets.SOURCE_ENTRY }}"
+          echo "✅ Descarga completada"
+          ls -lh payload/
+
+      - name: 3 - Find and process video
+        run: >
+          cd payload
+
+          FILE=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
+
+          if [ -z "$FILE" ]; then exit 1; fi
+
+          NAME=$(basename "$FILE")
+
+          BASE="${NAME%.*}"
+
+          echo "::add-mask::$FILE"
+
+          echo "::add-mask::$NAME"
+
+          echo "::add-mask::$BASE"
+
+          ffmpeg -i "$FILE" \
+            -vf "scale=-2:720" \
+            -map 0 \
+            -c:v libx264 -preset fast -crf 23 -threads 2 \
+            -c:a aac -b:a 128k \
+            -c:s copy \
+            "../${BASE}_720p.mkv"
+
+      - name: 4 - Package result
+        run: |
+          mkdir final
+          mv ./*.mkv final/
+          cd final
+          echo "📦 Creando ZIP protegido..."
+          zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip *
+          cd ..
+          echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
+
+      - name: 5 - Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-bundle
+          path: test.zip
