@@ -1,84 +1,133 @@
 ---
-name: Mega Downloader with Tor Fixed
+name: Mega to 720p Converter
 on:
   workflow_dispatch: null
 jobs:
   process:
     runs-on: ubuntu-latest
     steps:
-      - name: 1 - Install and configure Tor properly
+      - name: 1 - Setup Tor Environment
         run: |
-          echo "🛠️ Instalando Tor y dependencias..."
+          echo "🛠️ Installing dependencies..."
           sudo apt-get update
-          sudo apt-get install -y tor torsocks megatools
-          
-          echo "🔧 Configurando Tor..."
+          sudo apt-get install -y tor torsocks megatools ffmpeg unrar zip pv jq
+
+          echo "🔧 Configuring Tor..."
           sudo bash -c 'cat > /etc/tor/torrc << EOL
           ControlPort 9051
           HashedControlPassword $(tor --hash-password "githubtor" | tail -n 1)
           SocksPort 9050
           RunAsDaemon 1
           EOL'
-          
-          echo "🚀 Iniciando servicio Tor..."
+
           sudo service tor restart
-          sleep 5  # Esperar a que Tor se inicie completamente
-          
-          echo "🔍 Verificando conexión Tor..."
-          curl --socks5-hostname localhost:9050 -s https://check.torproject.org/api/ip | jq -r '.IsTor,.IP'
-          echo "✅ Tor configurado correctamente"
-
-      - name: 2 - Download from Mega with Tor
-        run: |
+          sleep 5
+          echo "🌐 Tor IP: $(torsocks curl -s ifconfig.me)"
+          echo "✅ Setup completed"
+      - name: 2 - Download with Tor
+        run: >
           mkdir -p payload
-          cd payload
-          
-          echo "🔄 Rotando IP de Tor..."
-          tor_control_password="githubtor"
-          echo -e "AUTHENTICATE \"$tor_control_password\"\r\nSIGNAL NEWNYM\r\nQUIT" | \
-            nc localhost 9051
-          
-          echo "🌐 Nueva IP: $(torsocks curl -s ifconfig.me)"
-          
-          echo "📥 Descargando desde Mega con Tor..."
-          set +e
-          torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}" 2>&1 | \
-            grep -E --line-buffered 'Downloading|Progress|ERROR|WARNING' | \
-            while read -r line; do
-              echo "📡 ${line:0:120}"
-            done
-          set -e
-          
-          echo "✅ Descarga completada"
-          echo "📂 Archivos descargados: $(ls -1 | wc -l)"
-          ls -lh | awk '{print $5, $9}' | grep -v '^total'
 
-      - name: 3 - Filter and process RAR files
-        run: |
           cd payload
-          echo "🔍 Filtrando archivos RAR..."
-          
-          # Crear lista segura de archivos
-          echo "📋 Contenido inicial:"
-          find . -maxdepth 1 -type f -exec basename {} \; | \
-            while read -r file; do
-              size=$(du -h "$file" | cut -f1)
-              echo "• $size ${file:0:30}..."
+
+
+          echo "🔄 Rotating Tor IP..."
+
+          echo -e "AUTHENTICATE \"githubtor\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc localhost 9051
+
+
+          echo "📥 Downloading from Mega..."
+
+          torsocks megatools dl --no-progress --path . "${{ secrets.SOURCE_ENTRY }}" 2>&1 | \
+            grep -E --line-buffered 'Downloading|Progress' | \
+            while read -r line; do
+              echo "📡 ${line:0:100}"
             done
-          
-          # Filtrar RARs
-          mkdir -p temp_rars
-          find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
-          
-          echo "📦 Archivos RAR encontrados: $(ls -1 temp_rars/ | wc -l)"
+
+          echo "✅ Download completed"
+
+          ls -lh
+      - name: 3 - Extract RAR Files
+        run: >
+          cd payload
+
+
+          echo "🔍 Filtering RAR files..."
+
           shopt -s extglob
+
+          mkdir -p temp_rars
+
+          find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
+
           rm -rf !("temp_rars")
+
           mv temp_rars/* .
+
           rmdir temp_rars
+
           shopt -u extglob
-          
-          echo "✅ Filtrado completado"
-          echo "📝 Archivos finales:"
-          ls -1 | while read -r file; do
-            echo "• $(du -h "$file" | cut -f1) ${file:0:30}..."
+
+
+          echo "🧩 Extracting RARs..."
+
+          for rar in *.rar; do
+            echo "📦 Extracting ${rar:0:30}..."
+            unrar x -o+ "$rar" | pv -l > /dev/null
           done
+
+
+          echo "🎉 Extraction completed"
+
+          find . -type f -exec ls -lh {} \;
+      - name: 4 - Convert to 720p MKV
+        run: >
+          cd payload
+
+
+          echo "🎬 Finding video file..."
+
+          VIDEO=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
+
+          [ -z "$VIDEO" ] && echo "❌ No video found" && exit 1
+
+
+          echo "::add-mask::$VIDEO"
+
+          NAME=$(basename "$VIDEO")
+
+          BASE="${NAME%.*}"
+
+
+          echo "🔄 Converting to 720p H.264..."
+
+          ffmpeg -i "$VIDEO" \
+            -vf "scale=-2:720" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -b:a 128k \
+            -c:s copy \
+            "../output_720p.mkv" 2>&1 | \
+            grep -E 'frame=|speed=' | \
+            while read -r line; do
+              echo "📹 ${line:0:80}"
+            done
+
+          echo "✅ Conversion completed"
+
+          ls -lh ../output_720p.mkv
+      - name: 5 - Package and Upload
+        run: >
+          echo "📦 Creating password-protected ZIP..."
+
+          zip -P "${{ secrets.ZIP_PASSWORD }}" final_output.zip output_720p.mkv
+
+
+          echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
+
+          echo "📊 Final file size: $(ls -lh final_output.zip | awk '{print $5}')"
+      - name: 6 - Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-video
+          path: final_output.zip
+          retention-days: 1
