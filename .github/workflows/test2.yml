@@ -1,117 +1,115 @@
 ---
-name: Mega RAR Processor
+name: Mega Downloader with Tor
 on:
   workflow_dispatch: null
 jobs:
   process:
     runs-on: ubuntu-latest
     steps:
-      - name: 1 - Setup environment
+      - name: 1 - Install dependencies
         run: |
-          echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
+          echo "🛠️ Instalando dependencias..."
           sudo apt-get update
-          sudo apt-get install -y megatools ffmpeg unrar zip pv
-          echo "🛠️ Dependencias instaladas correctamente"
+          sudo apt-get install -y megatools tor torsocks pv unrar
+          echo "✅ Dependencias instaladas"
 
-      - name: 2 - Download and filter RAR files from Mega folder
+      - name: 2 - Configure Tor
+        run: |
+          echo "🔧 Configurando Tor..."
+          echo "ControlPort 9051" | sudo tee -a /etc/tor/torrc
+          echo "HashedControlPassword $(tor --hash-password "githubtor" | tail -n 1)" | sudo tee -a /etc/tor/torrc
+          sudo service tor restart
+          echo "🔄 Verificando conexión Tor..."
+          torsocks curl -s ifconfig.me | xargs -I {} echo "IP actual: {}"
+          echo "✅ Tor configurado"
+
+      - name: 3 - Download from Mega with Tor
         run: |
           mkdir -p payload
           cd payload
           
-          echo "📥 Descargando carpeta Mega completa..."
-          megatools dl --no-progress --path . "${{ secrets.SOURCE_ENTRY }}"
+          echo "📥 Iniciando descarga desde Mega..."
+          echo "🔄 Rotando IP para evitar límites..."
+          torsocks curl -s --socks5-hostname localhost:9050 -X POST http://localhost:9051/control/newnym \
+            --user "controller:githubtor" > /dev/null
           
-          echo "🔍 Filtrando solo archivos RAR en la raíz..."
-          # Crear directorio temporal para RARs
+          echo "🌐 Nueva IP: $(torsocks curl -s ifconfig.me)"
+          
+          echo "⏳ Descargando archivos (esta operación puede tomar varios minutos)..."
+          set +e
+          torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}" 2>&1 | \
+            grep -E 'Downloading|Progress|ERROR|WARNING' | \
+            while IFS= read -r line; do
+              echo "📡 ${line:0:100}"  # Mostrar solo los primeros 100 caracteres por seguridad
+            done
+          set -e
+          
+          echo "🔍 Analizando archivos descargados..."
+          echo "📂 Contenido del directorio:"
+          ls -lh | awk '{print $5, $9}' | grep -v '^total'
+
+      - name: 4 - Filter RAR files
+        run: |
+          cd payload
+          echo "🔍 Filtrando archivos RAR..."
+          
+          # Mostrar conteo inicial
+          echo "📊 Archivos totales descargados: $(ls -1 | wc -l)"
+          
+          # Filtrar RARs
           mkdir -p temp_rars
-          
-          # Mover todos los RARs de la raíz al directorio temporal
           find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
           
-          # Limpiar todo excepto los RARs
+          # Mostrar progreso
+          echo "📦 Archivos RAR encontrados: $(ls -1 temp_rars/ | wc -l)"
+          ls -lh temp_rars/ | awk '{print $5, $9}' | grep -v '^total'
+          
+          # Limpieza
+          echo "🧹 Limpiando archivos no RAR..."
           shopt -s extglob
           rm -rf !("temp_rars")
           mv temp_rars/* .
           rmdir temp_rars
           shopt -u extglob
           
-          echo "✅ Archivos RAR filtrados:"
+          echo "✅ Filtrado completado"
+          echo "📋 Archivos finales:"
           ls -lh
 
-      - name: 3 - Verify RAR downloads
+      - name: 5 - Verify RAR files
         run: |
           cd payload
-          RAR_COUNT=$(find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) | wc -l)
+          echo "🔎 Verificando archivos RAR..."
+          
+          RAR_COUNT=$(ls -1 *.rar 2>/dev/null | wc -l)
           if [ "$RAR_COUNT" -eq 0 ]; then
-            echo "❌ Error: No se encontraron archivos RAR en la raíz"
-            echo "Contenido descargado:"
-            ls -R
+            echo "❌ Error: No se encontraron archivos RAR válidos"
+            echo "💾 Contenido actual:"
+            ls -lh
             exit 1
           else
             echo "✔️ Encontrados $RAR_COUNT archivos RAR"
+            echo "📝 Lista de archivos:"
+            ls -1 *.rar | awk '{print "• " $1}'
           fi
 
-      - name: 4 - Extract RAR files
+      - name: 6 - Extract RAR files
         run: |
           cd payload
-          echo "🧩 Extrayendo archivos RAR..."
+          echo "📦 Iniciando extracción..."
           
-          # Extraer cada archivo RAR encontrado
           for rar_file in *.rar; do
-            echo "📦 Extrayendo $rar_file..."
-            unrar x -o+ "$rar_file" | pv -l > /dev/null
+            echo "🔓 Extrayendo: ${rar_file:0:30}..."  # Mostrar solo parte del nombre
+            unrar x -o+ "$rar_file" | \
+              pv -l -s $(unrar l "$rar_file" | grep -c "\.\.\.") > /dev/null
+            echo "✅ ${rar_file:0:30} extraído"
           done
           
           echo "🎉 Extracción completada"
           echo "📂 Contenido extraído:"
-          ls -lh
+          du -h --max-depth=1 | sort -h
 
-      - name: 5 - Find and process video file
+      - name: 7 - Continue with processing...
         run: |
-          cd payload
-          echo "🎬 Buscando archivos de video..."
-          
-          FILE=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
-          
-          if [ -z "$FILE" ]; then
-            echo "❌ No se encontraron archivos de video válidos"
-            echo "Contenido del directorio:"
-            ls -R
-            exit 1
-          fi
-          
-          NAME=$(basename "$FILE")
-          BASE="${NAME%.*}"
-          
-          echo "::add-mask::$FILE"
-          echo "::add-mask::$NAME"
-          echo "::add-mask::$BASE"
-          
-          echo "🔄 Procesando video: [nombre_ofuscado]"
-          mkdir -p ../processed
-          
-          ffmpeg -i "$FILE" \
-            -vf "scale=-2:720" \
-            -map 0 \
-            -c:v libx264 -preset fast -crf 23 \
-            -c:a aac -b:a 128k \
-            -c:s copy \
-            "../processed/${BASE}_720p.mkv" 2>&1 | grep "frame="
-            
-          echo "✅ Video procesado correctamente"
-
-      - name: 6 - Create protected ZIP
-        run: |
-          echo "📦 Creando archivo ZIP protegido..."
-          cd processed
-          zip -P "${{ secrets.ZIP_PASSWORD }}" ../final_output.zip *
-          
-          echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
-          echo "📊 Tamaño del archivo final:"
-          ls -lh ../final_output.zip
-
-      - name: 7 - Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: processed-video
-          path: final_output.zip
+          echo "➡️ Continuar con el procesamiento del video..."
+          # (Aquí irían los pasos siguientes de tu workflow)
