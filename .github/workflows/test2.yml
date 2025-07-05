@@ -1,133 +1,99 @@
 ---
-name: Mega to 720p Converter
+name: Mega Download and Convert (Full Logs)
 on:
   workflow_dispatch: null
 jobs:
   process:
     runs-on: ubuntu-latest
     steps:
-      - name: 1 - Setup Tor Environment
+      # Paso 1: Instalación sin restricciones
+      - name: 1 - Install Dependencies
         run: |
-          echo "🛠️ Installing dependencies..."
           sudo apt-get update
-          sudo apt-get install -y tor torsocks megatools ffmpeg unrar zip pv jq
+          sudo apt-get install -y tor torsocks megatools ffmpeg unrar zip
+          echo "Versión de megatools:"
+          megatools --version
+          echo "Versión de ffmpeg:"
+          ffmpeg -version | head -n 1
 
-          echo "🔧 Configuring Tor..."
+      # Paso 2: Configuración de Tor con logs visibles
+      - name: 2 - Configure Tor
+        run: |
           sudo bash -c 'cat > /etc/tor/torrc << EOL
           ControlPort 9051
-          HashedControlPassword $(tor --hash-password "githubtor" | tail -n 1)
           SocksPort 9050
           RunAsDaemon 1
+          Log notice file /var/log/tor/notices.log
           EOL'
-
+          
           sudo service tor restart
-          sleep 5
-          echo "🌐 Tor IP: $(torsocks curl -s ifconfig.me)"
-          echo "✅ Setup completed"
-      - name: 2 - Download with Tor
-        run: >
+          sleep 3
+          echo "=== Estado de Tor ==="
+          sudo service tor status
+          echo "=== IP inicial ==="
+          torsocks curl -s ifconfig.me
+
+      # Paso 3: Descarga con logs completos
+      - name: 3 - Download from Mega (Full Output)
+        run: |
           mkdir -p payload
-
           cd payload
-
-
-          echo "🔄 Rotating Tor IP..."
-
-          echo -e "AUTHENTICATE \"githubtor\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc localhost 9051
-
-
-          echo "📥 Downloading from Mega..."
-
-          torsocks megatools dl --no-progress --path . "${{ secrets.SOURCE_ENTRY }}" 2>&1 | \
-            grep -E --line-buffered 'Downloading|Progress' | \
-            while read -r line; do
-              echo "📡 ${line:0:100}"
-            done
-
-          echo "✅ Download completed"
-
+          
+          echo "=== Rotando IP ==="
+          echo -e "AUTHENTICATE \"\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc localhost 9051
+          echo "=== Nueva IP ==="
+          torsocks curl -s ifconfig.me
+          
+          echo "=== Iniciando descarga Mega ==="
+          torsocks megatools dl --path . "${{ secrets.SOURCE_ENTRY }}"
+          
+          echo "=== Contenido descargado ==="
           ls -lh
-      - name: 3 - Extract RAR Files
-        run: >
+          echo "=== Estructura de carpetas ==="
+          tree -L 2
+
+      # Paso 4: Procesamiento con logs detallados
+      - name: 4 - Process Files
+        run: |
           cd payload
-
-
-          echo "🔍 Filtering RAR files..."
-
-          shopt -s extglob
-
-          mkdir -p temp_rars
-
-          find . -maxdepth 1 -type f \( -iname "*.rar" -o -iname "*.part*.rar" \) -exec mv {} temp_rars/ \;
-
-          rm -rf !("temp_rars")
-
-          mv temp_rars/* .
-
-          rmdir temp_rars
-
-          shopt -u extglob
-
-
-          echo "🧩 Extracting RARs..."
-
-          for rar in *.rar; do
-            echo "📦 Extracting ${rar:0:30}..."
-            unrar x -o+ "$rar" | pv -l > /dev/null
+          
+          echo "=== Buscando archivos RAR ==="
+          find . -type f -iname "*.rar" -o -iname "*.part*.rar"
+          
+          echo "=== Extrayendo ==="
+          for rar in $(find . -type f \( -iname "*.rar" -o -iname "*.part*.rar" \)); do
+            echo "Extrayendo: $rar"
+            unrar x -o+ "$rar"
           done
-
-
-          echo "🎉 Extraction completed"
-
-          find . -type f -exec ls -lh {} \;
-      - name: 4 - Convert to 720p MKV
-        run: >
-          cd payload
-
-
-          echo "🎬 Finding video file..."
-
+          
+          echo "=== Buscando videos ==="
+          find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) -exec ls -lh {} \;
+          
           VIDEO=$(find . -type f \( -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" \) | head -n 1)
-
-          [ -z "$VIDEO" ] && echo "❌ No video found" && exit 1
-
-
-          echo "::add-mask::$VIDEO"
-
-          NAME=$(basename "$VIDEO")
-
-          BASE="${NAME%.*}"
-
-
-          echo "🔄 Converting to 720p H.264..."
-
+          [ -z "$VIDEO" ] && echo "ERROR: No se encontró video" && exit 1
+          
+          echo "=== Convirtiendo $VIDEO ==="
           ffmpeg -i "$VIDEO" \
             -vf "scale=-2:720" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -b:a 128k \
             -c:s copy \
-            "../output_720p.mkv" 2>&1 | \
-            grep -E 'frame=|speed=' | \
-            while read -r line; do
-              echo "📹 ${line:0:80}"
-            done
-
-          echo "✅ Conversion completed"
-
+            "../output_720p.mkv"
+          
+          echo "=== Archivo convertido ==="
           ls -lh ../output_720p.mkv
+
+      # Paso 5: Empaquetado y upload
       - name: 5 - Package and Upload
-        run: >
-          echo "📦 Creating password-protected ZIP..."
-
+        run: |
+          echo "=== Comprimiendo ==="
           zip -P "${{ secrets.ZIP_PASSWORD }}" final_output.zip output_720p.mkv
+          
+          echo "=== Subiendo artefacto ==="
+          ls -lh final_output.zip
 
-
-          echo "::add-mask::${{ secrets.ZIP_PASSWORD }}"
-
-          echo "📊 Final file size: $(ls -lh final_output.zip | awk '{print $5}')"
       - name: 6 - Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: converted-video
           path: final_output.zip
-          retention-days: 1
