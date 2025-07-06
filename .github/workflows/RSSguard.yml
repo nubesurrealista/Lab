@@ -1,10 +1,10 @@
-name: Build RSS Guard (Linux - Lite)
+name: Build RSS Guard (Linux - Lite - Release)
 
 on:
+  workflow_dispatch:  # Permite ejecución manual cuando quieras
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    tags:
+      - 'v*'  # Opcional: También se activa al crear un tag (ej. v5.0.0)
 
 jobs:
   build:
@@ -14,7 +14,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        submodules: recursive
+        submodules: recursive  # Necesario para dependencias
 
     - name: Install dependencies
       run: |
@@ -29,20 +29,18 @@ jobs:
           qt6-base-dev \
           qt6-multimedia-dev \
           qt6-qml-dev \
-          qt6-quick3d-dev \
           qt6-tools-dev \
-          qt6-base-private-dev \
           zlib1g-dev
 
-    - name: Configure and build (Release)
+    - name: Configure and build (Release + Multimedia)
       run: |
-        mkdir build && cd build
+        mkdir -p build && cd build
         cmake .. \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=/usr \
           -DBUILD_WITH_QT6=ON \
           -DNO_LITE=OFF \
-          -DENABLE_MEDIAPLAYER_LIBMPV=ON \
+          -DENABLE_MEDIAPLAYER_LIBMPV=ON \  # Multimedia activada por defecto
           -DUSE_SYSTEM_SQLITE=ON
         cmake --build . --parallel $(nproc)
 
@@ -51,15 +49,15 @@ jobs:
         cd build
         ./src/rssguard/rssguard --version
 
-    - name: Package artifacts
+    - name: Package and upload artifact
       run: |
         mkdir -p artifacts
         cp build/src/rssguard/rssguard artifacts/
-        strip artifacts/rssguard
-        tar czvf rssguard-lite-linux.tar.gz -C artifacts .
+        strip artifacts/rssguard  # Optimiza el binario
+        tar czvf rssguard-lite-linux-release.tar.gz -C artifacts .
         
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
-        name: rssguard-lite-linux
-        path: rssguard-lite-linux.tar.gz
+        name: rssguard-lite-linux-release
+        path: rssguard-lite-linux-release.tar.gz
