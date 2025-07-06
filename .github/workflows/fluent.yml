@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Clone Fluent Reader repository
-        run: git clone --depth 1 https://github.com/yang991178/fluent-reader.git fluent-reader
+        run: git clone --depth 1 https://github.com/nubesurrealista/fluent-reader.git fluent-reader
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
