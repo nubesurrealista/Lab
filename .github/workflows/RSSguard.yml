@@ -1,10 +1,10 @@
 name: Build RSS Guard (Linux - Lite - Release)
 
 on:
-  workflow_dispatch:  # Permite ejecución manual cuando quieras
+  workflow_dispatch:  # Ejecución manual
   push:
     tags:
-      - 'v*'  # Opcional: También se activa al crear un tag (ej. v5.0.0)
+      - 'v*'  # Opcional: Se activa con tags (ej. v5.0.0)
 
 jobs:
   build:
@@ -14,7 +14,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        submodules: recursive  # Necesario para dependencias
+        submodules: recursive
 
     - name: Install dependencies
       run: |
@@ -40,7 +40,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX=/usr \
           -DBUILD_WITH_QT6=ON \
           -DNO_LITE=OFF \
-          -DENABLE_MEDIAPLAYER_LIBMPV=ON \  # Multimedia activada por defecto
+          -DENABLE_MEDIAPLAYER_LIBMPV=ON \
           -DUSE_SYSTEM_SQLITE=ON
         cmake --build . --parallel $(nproc)
 
@@ -49,15 +49,16 @@ jobs:
         cd build
         ./src/rssguard/rssguard --version
 
-    - name: Package and upload artifact
+    - name: Package artifact
       run: |
         mkdir -p artifacts
         cp build/src/rssguard/rssguard artifacts/
-        strip artifacts/rssguard  # Optimiza el binario
+        strip artifacts/rssguard
         tar czvf rssguard-lite-linux-release.tar.gz -C artifacts .
-        
+
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Versión actualizada
       with:
         name: rssguard-lite-linux-release
         path: rssguard-lite-linux-release.tar.gz
+        retention-days: 7  # Opcional: Borra el artifact después de 7 días
