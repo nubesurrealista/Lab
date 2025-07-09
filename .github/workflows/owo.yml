@@ -1,0 +1,64 @@
+name: Enviar archivo desde URL a Telegram
+
+on:
+  workflow_dispatch:
+    inputs:
+      download_url:
+        description: 'Enlace directo al archivo a enviar (http/https)'
+        required: true
+        type: string
+      filename:
+        description: 'Nombre deseado del archivo local (ej. archivo.zip)'
+        required: true
+        type: string
+
+jobs:
+  enviar_a_telegram:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Descargar con aria2
+      run: |
+        sudo apt-get update && sudo apt-get install -y aria2
+        aria2c "${{ inputs.download_url }}" \
+          -o "${{ inputs.filename }}" \
+          --max-connection-per-server=4 \
+          --split=4 \
+          --enable-rpc=false
+        ls -lh "${{ inputs.filename }}"
+
+    - name: 📏 Evaluar tamaño
+      id: sizecheck
+      run: |
+        SIZE=$(stat -c%s "${{ inputs.filename }}")
+        echo "size=$SIZE" >> $GITHUB_OUTPUT
+        echo "📦 Tamaño del archivo: $SIZE bytes"
+
+    - name: 🚀 Enviar directamente si < 50MB
+      if: ${{ steps.sizecheck.outputs.size < 52428800 }}
+      run: |
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -F caption="✅ Archivo completo: ${{ inputs.filename }}" \
+          -F document=@"${{ inputs.filename }}"
+
+    - name: ✂️ Dividir si excede 50MB
+      if: ${{ steps.sizecheck.outputs.size >= 52428800 }}
+      run: |
+        split -b 49M "${{ inputs.filename }}" fragment_
+        echo "🧩 Fragmentos creados:"
+        ls -lh fragment_*
+
+    - name: 🚀 Enviar fragmentos
+      if: ${{ steps.sizecheck.outputs.size >= 52428800 }}
+      run: |
+        i=1
+        for f in fragment_*; do
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+            -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -F caption="🧩 Fragmento $i de '${{ inputs.filename }}'" \
+            -F document=@"$f"
+          echo "✅ Enviado fragmento $i → $f"
+          sleep 5
+          ((i++))
+        done
