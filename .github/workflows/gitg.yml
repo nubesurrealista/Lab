@@ -1,10 +1,10 @@
-name: Enviar artefacto fragmentado a Telegram
+name: Enviar artefacto adaptativamente a Telegram
 
 on:
   workflow_dispatch:
     inputs:
       external_repo:
-        description: 'Repo externo (ej. usuario/proyecto)'
+        description: 'Repositorio externo (ej. usuario/proyecto)'
         required: true
         type: string
       run_id:
@@ -17,7 +17,7 @@ on:
         type: string
 
 jobs:
-  enviar_fragmentos:
+  enviar:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,19 +37,37 @@ jobs:
 
         echo "::set-output name=artifact_id::$ARTIFACT_ID"
 
-    - name: 📦 Descargar artefacto
+    - name: 📦 Descargar artefacto ZIP
       run: |
         ARTIFACT_ID="${{ steps.buscar.outputs.artifact_id }}"
         curl -L -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
           "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
-          -o artifact_original.zip
+          -o full_artifact.zip
 
-    - name: ✂️ Dividir en fragmentos de 49MB
+    - name: 📏 Verificar tamaño
+      id: verificar
       run: |
-        split -b 49M artifact_original.zip fragment_
+        SIZE=$(stat -c%s full_artifact.zip)
+        echo "Tamaño del archivo: $SIZE bytes"
+        echo "::set-output name=size::$SIZE"
+
+    - name: 🚀 Enviar directamente si cabe en Telegram
+      if: ${{ steps.verificar.outputs.size < 52428800 }}
+      run: |
+        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -F caption="✅ Artefacto completo: '${{ inputs.artifact_name }}'" \
+          -F document=@full_artifact.zip
+
+    - name: ✂️ Dividir si excede 50MB
+      if: ${{ steps.verificar.outputs.size >= 52428800 }}
+      run: |
+        split -b 49M full_artifact.zip fragment_
+        echo "🔗 Fragmentos generados:"
         ls -lh fragment_*
 
-    - name: 🚀 Enviar fragmentos a Telegram
+    - name: 🚀 Enviar fragmentos
+      if: ${{ steps.verificar.outputs.size >= 52428800 }}
       run: |
         i=1
         for archivo in fragment_*; do
