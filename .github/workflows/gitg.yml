@@ -35,7 +35,7 @@ jobs:
           exit 1
         fi
 
-        echo "::set-output name=artifact_id::$ARTIFACT_ID"
+        echo "artifact_id=$ARTIFACT_ID" >> $GITHUB_OUTPUT
 
     - name: 📦 Descargar artefacto ZIP
       run: |
@@ -44,14 +44,13 @@ jobs:
           "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
           -o full_artifact.zip
 
-    - name: 📏 Verificar tamaño
+    - name: 📏 Verificar tamaño del artefacto
       id: verificar
       run: |
-        SIZE=$(stat -c%s full_artifact.zip)
-        echo "Tamaño del archivo: $SIZE bytes"
-        echo "::set-output name=size::$SIZE"
+        FILESIZE=$(stat -c%s full_artifact.zip)
+        echo "size=$FILESIZE" >> $GITHUB_OUTPUT
 
-    - name: 🚀 Enviar directamente si cabe en Telegram
+    - name: 📤 Enviar directamente si < 50MB
       if: ${{ steps.verificar.outputs.size < 52428800 }}
       run: |
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
@@ -59,14 +58,14 @@ jobs:
           -F caption="✅ Artefacto completo: '${{ inputs.artifact_name }}'" \
           -F document=@full_artifact.zip
 
-    - name: ✂️ Dividir si excede 50MB
+    - name: ✂️ Dividir archivo si excede 50MB
       if: ${{ steps.verificar.outputs.size >= 52428800 }}
       run: |
         split -b 49M full_artifact.zip fragment_
-        echo "🔗 Fragmentos generados:"
+        echo "Fragmentos generados:"
         ls -lh fragment_*
 
-    - name: 🚀 Enviar fragmentos
+    - name: 🚀 Enviar fragmentos a Telegram
       if: ${{ steps.verificar.outputs.size >= 52428800 }}
       run: |
         i=1
