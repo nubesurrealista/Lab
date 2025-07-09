@@ -1,0 +1,50 @@
+name: Enviar artefacto a Telegram por run_id
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'ID del workflow que generó el artefacto'
+        required: true
+        type: string
+      artifact_name:
+        description: 'Nombre del artefacto que quieres enviar'
+        required: true
+        type: string
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🧾 Obtener información del artefacto
+      run: |
+        echo "Buscando artefacto '${{ inputs.artifact_name }}' en run_id=${{ inputs.run_id }}"
+
+        curl -s \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/artifacts \
+          > artifacts.json
+
+        echo "Lista de artefactos disponibles:"
+        cat artifacts.json | jq '.artifacts | map({name, id})'
+
+        ARTIFACT_ID=$(cat artifacts.json | jq '.artifacts[] | select(.name=="${{ inputs.artifact_name }}") | .id')
+        echo "ID detectado: $ARTIFACT_ID"
+
+        if [ -z "$ARTIFACT_ID" ]; then
+          echo "❌ Artefacto no encontrado, abortando"
+          exit 1
+        fi
+
+        echo "Descargando artefacto..."
+        curl -L \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip \
+          -o artifact.zip
+
+    - name: ✈️ Enviar artefacto a Telegram
+      run: |
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+          -F document=@artifact.zip
