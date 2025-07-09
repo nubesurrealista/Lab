@@ -1,10 +1,10 @@
-name: Enviar artefacto desde repo externo a Telegram
+name: Enviar artefacto comprimido a Telegram
 
 on:
   workflow_dispatch:
     inputs:
       external_repo:
-        description: 'Nombre del repositorio (ej. usuario/proyecto)'
+        description: 'Repo externo (ej. usuario/proyecto)'
         required: true
         type: string
       run_id:
@@ -21,38 +21,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🧾 Obtener artefactos desde ${{ inputs.external_repo }}
+    - name: 📥 Obtener lista de artefactos
       id: obtener_artifact
       run: |
-        echo "🔍 Buscando artefacto '${{ inputs.artifact_name }}' en run_id=${{ inputs.run_id }} del repo '${{ inputs.external_repo }}'"
+        echo "🔎 Buscando '${{ inputs.artifact_name }}' en run_id=${{ inputs.run_id }} del repo '${{ inputs.external_repo }}'"
 
         curl -s \
           -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
           https://api.github.com/repos/${{ inputs.external_repo }}/actions/runs/${{ inputs.run_id }}/artifacts \
           > artifacts.json
 
-        echo "📜 Artefactos disponibles:"
-        cat artifacts.json | jq '.artifacts | map({name, id})'
-
         ARTIFACT_ID=$(jq -r '.artifacts[] | select(.name == "'${{ inputs.artifact_name }}'") | .id' artifacts.json)
 
         if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
-          echo "❌ Artefacto no encontrado. Revisa el nombre y el run_id."
+          echo "❌ Artefacto no encontrado, abortando"
           exit 1
         fi
 
+        echo "✅ Artefacto encontrado: ID $ARTIFACT_ID"
         echo "::set-output name=artifact_id::$ARTIFACT_ID"
 
-    - name: 📦 Descargar artefacto
+    - name: 📦 Descargar artefacto ZIP
       run: |
         ARTIFACT_ID="${{ steps.obtener_artifact.outputs.artifact_id }}"
         curl -L \
           -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
           https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip \
-          -o artifact.zip
+          -o raw_artifact.zip
 
-    - name: 📤 Enviar artefacto ZIP por Telegram
+    - name: 🗜️ Comprimir usando xz (nivel máximo)
       run: |
+        tar -cf telegram.tar raw_artifact.zip
+        xz -9 -T0 telegram.tar
+        mv telegram.tar.xz compressed_artifact.xz
+        echo "📏 Tamaño final:"
+        du -h compressed_artifact.xz
+
+    - name: 🚀 Enviar por Telegram
+      run: |
+        SIZE=$(stat -c%s compressed_artifact.xz)
+        LIMIT=$((50 * 1024 * 1024))
+
+        if [ "$SIZE" -gt "$LIMIT" ]; then
+          echo "❌ Archivo demasiado grande para Telegram (>$((SIZE / 1024 / 1024)) MB)"
+          exit 1
+        fi
+
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@artifact.zip
+          -F document=@compressed_artifact.xz
