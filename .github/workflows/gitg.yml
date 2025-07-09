@@ -1,49 +1,54 @@
-name: Enviar artefacto a Telegram por run_id
+name: Enviar artefacto a Telegram
 
 on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'ID del workflow que generó el artefacto'
+        description: 'ID del run de GitHub Actions que generó el artefacto'
         required: true
         type: string
       artifact_name:
-        description: 'Nombre del artefacto que quieres enviar'
+        description: 'Nombre exacto del artefacto ZIP que quieres enviar'
         required: true
         type: string
 
 jobs:
-  enviar:
+  enviar_a_telegram:
     runs-on: ubuntu-latest
-
     steps:
-    - name: 🧾 Obtener información del artefacto
+    - name: 📥 Obtener la lista de artefactos del run
+      id: obtener_artifact
       run: |
-        echo "Buscando artefacto '${{ inputs.artifact_name }}' en run_id=${{ inputs.run_id }}"
+        echo "⏳ Buscando artefacto '${{ inputs.artifact_name }}' en run_id=${{ inputs.run_id }}"
 
+        # Solicita los artefactos del run
         curl -s \
           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/artifacts \
           > artifacts.json
 
-        echo "Lista de artefactos disponibles:"
-        cat artifacts.json | jq '.artifacts | map({name, id})'
+        # Verifica existencia
+        ARTIFACT_ID=$(jq -r '.artifacts[] | select(.name == "'${{ inputs.artifact_name }}'") | .id' artifacts.json)
 
-        ARTIFACT_ID=$(cat artifacts.json | jq '.artifacts[] | select(.name=="${{ inputs.artifact_name }}") | .id')
-        echo "ID detectado: $ARTIFACT_ID"
-
-        if [ -z "$ARTIFACT_ID" ]; then
-          echo "❌ Artefacto no encontrado, abortando"
+        if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
+          echo "❌ Artefacto '${{ inputs.artifact_name }}' no encontrado en ese run."
           exit 1
         fi
 
-        echo "Descargando artefacto..."
+        echo "✅ Artefacto encontrado: ID $ARTIFACT_ID"
+        echo "::set-output name=artifact_id::$ARTIFACT_ID"
+
+    - name: 📦 Descargar artefacto ZIP
+      run: |
+        ARTIFACT_ID="${{ steps.obtener_artifact.outputs.artifact_id }}"
+        echo "⬇️ Descargando artefacto ID: $ARTIFACT_ID"
+
         curl -L \
           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip \
           -o artifact.zip
 
-    - name: ✈️ Enviar artefacto a Telegram
+    - name: ✈️ Enviar ZIP a Telegram
       run: |
         curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
