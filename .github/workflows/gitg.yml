@@ -1,4 +1,4 @@
-name: Enviar artefacto dividido a Telegram
+name: Enviar artefacto fragmentado a Telegram
 
 on:
   workflow_dispatch:
@@ -12,27 +12,26 @@ on:
         required: true
         type: string
       artifact_name:
-        description: 'Nombre del artefacto'
+        description: 'Nombre exacto del artefacto'
         required: true
         type: string
 
 jobs:
-  enviar_a_telegram:
+  enviar_fragmentos:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 Buscar artefacto en ejecución externa
-      id: obtener
+    - name: 🔍 Buscar artefacto
+      id: buscar
       run: |
-        curl -s \
-          -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
-          https://api.github.com/repos/${{ inputs.external_repo }}/actions/runs/${{ inputs.run_id }}/artifacts \
+        curl -s -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
+          "https://api.github.com/repos/${{ inputs.external_repo }}/actions/runs/${{ inputs.run_id }}/artifacts" \
           > artifacts.json
 
         ARTIFACT_ID=$(jq -r '.artifacts[] | select(.name == "'${{ inputs.artifact_name }}'") | .id' artifacts.json)
 
         if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
-          echo "❌ Artefacto '${{ inputs.artifact_name }}' no encontrado"
+          echo "❌ Artefacto no encontrado, abortando"
           exit 1
         fi
 
@@ -40,44 +39,25 @@ jobs:
 
     - name: 📦 Descargar artefacto
       run: |
-        ARTIFACT_ID="${{ steps.obtener.outputs.artifact_id }}"
-        curl -L \
-          -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
-          https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip \
-          -o full_artifact.zip
+        ARTIFACT_ID="${{ steps.buscar.outputs.artifact_id }}"
+        curl -L -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
+          "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
+          -o artifact_original.zip
 
-    - name: ✂️ Dividir archivo en partes de <50MB
+    - name: ✂️ Dividir en fragmentos de 49MB
       run: |
-        split -b 49M full_artifact.zip part_
-        mv part_aa part1.zip
-        mv part_ab part2.zip
-        mv part_ac part3.zip
-        echo "✅ Archivo dividido en:"
-        ls -lh part*.zip
+        split -b 49M artifact_original.zip fragment_
+        ls -lh fragment_*
 
-    - name: 🚀 Enviar parte 1
+    - name: 🚀 Enviar fragmentos a Telegram
       run: |
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@part1.zip \
-          -F caption="Parte 1 de 3: '${{ inputs.artifact_name }}'"
-
-    - name: 🕒 Pausa breve
-      run: sleep 5
-
-    - name: 🚀 Enviar parte 2
-      run: |
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@part2.zip \
-          -F caption="Parte 2 de 3: '${{ inputs.artifact_name }}'"
-
-    - name: 🕒 Pausa breve
-      run: sleep 5
-
-    - name: 🚀 Enviar parte 3
-      run: |
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F document=@part3.zip \
-          -F caption="Parte 3 de 3: '${{ inputs.artifact_name }}'"
+        i=1
+        for archivo in fragment_*; do
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+            -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -F caption="🧩 Fragmento $i de '${{ inputs.artifact_name }}'" \
+            -F document=@"$archivo"
+          echo "✅ Enviado fragmento $i → $archivo"
+          sleep 5
+          ((i++))
+        done
