@@ -13,128 +13,129 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-      - name: Cherry-pick from Kahon (with proper conflict resolution)
-        run: |
+      - name: Cherry-pick from Kahon with TOML conflict resolution
+        run: >
           set -e
+
           cd mihon
+
           git remote add kahon https://github.com/AmanoTeam/Kahon.git
+
           git fetch kahon
 
-          git cherry-pick 16580dadfdff3a4ed20b57b2f03c4f90f715d983 || \
-            { git cherry-pick --abort; exit 1; }
 
-          git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || \
-            { 
-              if [ -f gradle/libs.versions.toml ]; then
-                sed -i '/^<<<<<<</d' gradle/libs.versions.toml
-                sed -i '/^=======/d' gradle/libs.versions.toml
-                sed -i '/^>>>>>>>/d' gradle/libs.versions.toml
-                sed -i '/^</d' gradle/libs.versions.toml
-                
-                awk '
-                  BEGIN { in_section = ""; seen = {} }
-                  /^\[.*\]$/ { 
-                    in_section = $0
-                    print $0
-                    next
-                  }
-                  /^[[:space:]]*[^#]/ && in_section != "" {
-                    key = $0
-                    gsub(/[[:space:]]*=.*/, "", key)
-                    gsub(/^[[:space:]]+/, "", key)
-                    if (!(in_section key in seen)) {
-                      seen[in_section key] = 1
-                      print $0
-                    }
-                    next
-                  }
-                  { print }
-                ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp && \
-                mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
-              fi
-              
-              git add .
-              git cherry-pick --continue
-            }
-      - name: Remove telemetry module and references
-        run: >
-          cd mihon
+          # Cherry-pick commits con resolución manual de conflictos TOML
+
+          git cherry-pick 16580dadfdff3a4ed20b57b2f03c4f90f715d983 || true
+
+
+          # Resolver conflictos en el TOML antes del segundo cherry-pick
 
           if [ -f gradle/libs.versions.toml ]; then
-            sed -i '/^</d' gradle/libs.versions.toml
-            sed -i '/^[[:space:]]*$/d' gradle/libs.versions.toml
+            # Eliminar duplicados manteniendo solo la primera definición
             awk '
-              /^\[.*\]$/ { 
-                section = $0
-                print section
+              BEGIN {
+                FS = "="
+                OFS = "="
+                current_section = ""
+                delete seen
+              }
+              /^\[.*\]/ {
+                current_section = $0
+                print
                 next
               }
-              /^[[:space:]]*[^#=]/ {
-                if (section != "") {
-                  print $0
+              /^[^#]/ && NF > 0 {
+                key = $1
+                gsub(/^[ \t]+/, "", key)
+                gsub(/[ \t]+$/, "", key)
+                
+                if (!(current_section key in seen)) {
+                  seen[current_section key] = 1
+                  print
                 }
                 next
               }
               { print }
-            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp && \
+            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp
             mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
           fi
 
+
+          git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || true
+
+
+          # Resolver conflictos post cherry-pick
+
+          if [ -f gradle/libs.versions.toml ]; then
+            # Eliminar marcadores de conflicto
+            sed -i '/^<<<<<<</d; /^=======/d; /^>>>>>>>/d' gradle/libs.versions.toml
+            
+            # Eliminar duplicados nuevamente
+            awk '
+              BEGIN {
+                FS = "="
+                OFS = "="
+                current_section = ""
+                delete seen
+              }
+              /^\[.*\]/ {
+                current_section = $0
+                print
+                next
+              }
+              /^[^#]/ && NF > 0 {
+                key = $1
+                gsub(/^[ \t]+/, "", key)
+                gsub(/[ \t]+$/, "", key)
+                
+                if (!(current_section key in seen)) {
+                  seen[current_section key] = 1
+                  print
+                }
+                next
+              }
+              { print }
+            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp
+            mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
+          fi
+
+
+          git add gradle/libs.versions.toml || true
+      - name: Clean and verify TOML file
+        run: >
+          cd mihon
+
+          # Limpieza final del TOML
+
+          if [ -f gradle/libs.versions.toml ]; then
+            # Eliminar entradas específicas no deseadas
+            sed -i '/firebase-bom/d; /firebase-analytics/d; /firebase-crashlytics/d; /google-services/d' gradle/libs.versions.toml
+            
+            # Eliminar líneas vacías y espacios innecesarios
+            sed -i '/^$/d; s/[[:space:]]*$//' gradle/libs.versions.toml
+            
+            # Verificar sintaxis TOML básica
+            if grep -q '^[^#]*=[^=]*$' gradle/libs.versions.toml; then
+              echo "TOML file syntax appears valid"
+            else
+              echo "Warning: Potential TOML syntax issues detected"
+            fi
+          fi
+
+
+          ./gradlew clean
+      - name: Remove telemetry module and references
+        run: >
+          cd mihon
 
           rm -rf telemetry
 
           sed -i '/include(":telemetry")/d' settings.gradle.kts || true
 
-          sed -i '/firebase.crashlytics/d' build.gradle.kts || true
-
-          sed -i '/google.services/d' build.gradle.kts || true
+          sed -i '/firebase.crashlytics/d; /google.services/d' build.gradle.kts || true
 
           sed -i '/includeTelemetry/d' buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt || true
-
-          sed -i '/firebase-bom/d' gradle/libs.versions.toml || true
-
-          sed -i '/firebase-analytics/d' gradle/libs.versions.toml || true
-
-          sed -i '/firebase-crashlytics/d' gradle/libs.versions.toml || true
-
-          sed -i '/google-services/d' gradle/libs.versions.toml || true
-
-          sed -i '/ktlint/d' gradle/libs.versions.toml || true
-
-          sed -i '/ktlint/d' buildSrc/src/main/kotlin/mihon.code.lint.gradle.kts || true
-
-          sed -i '/ktlint/d' build.gradle.kts || true
-
-
-          if [ -f app/src/main/java/eu/kanade/tachiyomi/util/system/BuildConfig.kt ]; then
-            sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/tachiyomi/util/system/BuildConfig.kt
-          fi
-
-
-          if [ -f app/src/main/java/eu/kanade/tachiyomi/App.kt ]; then
-            sed -i '/TelemetryConfig/d' app/src/main/java/eu/kanade/tachiyomi/App.kt
-            sed -i '/analytics()/,/launchIn/d' app/src/main/java/eu/kanade/tachiyomi/App.kt
-            sed -i '/crashlytics()/,/launchIn/d' app/src/main/java/eu/kanade/tachiyomi/App.kt
-          fi
-
-
-          if [ -f app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt ]; then
-            sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
-            sed -i '/Crashlytics\|Analytics\|crashlytics\|analytics/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
-            sed -i '/HorizontalDivider/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
-          fi
-
-
-          if [ -f app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt ]; then
-            sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt
-            sed -i '/getFirebaseGroup/d' app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt
-            awk '!inBlock && /private fun getFirebaseGroup/ {inBlock=1} !inBlock {print} /}/ && inBlock {inBlock=0}' \
-              app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt > tmp && \
-              mv tmp app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt
-          fi
-
-
-          ./gradlew clean
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
