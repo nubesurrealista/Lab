@@ -13,7 +13,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-      - name: Cherry-pick from Kahon (con resolución automática de Firebase/telemetry)
+      - name: Cherry-pick from Kahon (con resolución mejorada de conflictos)
         run: >
           set -e
 
@@ -28,18 +28,37 @@ jobs:
           git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || true
 
 
-          # Si hay conflicto en gradle/libs.versions.toml, lo resolvemos aquí automáticamente
-
+          # Resolución mejorada de conflictos en gradle/libs.versions.toml
           if grep -q '<<<<<<<' gradle/libs.versions.toml; then
-            awk '!/firebase-bom/ && !/firebase-analytics/ && !/firebase-crashlytics/ && !/google-services/ {print}' gradle/libs.versions.toml | \
-              awk '
-                BEGIN{conf=0}
-                /<<<<<<<|=======|>>>>>>>/ {next}
-                {print}
-              ' > gradle/libs.versions.toml.resolved
+            awk '
+              BEGIN { in_conflict = 0; seen = {} }
+              /<<<<<<</ { in_conflict = 1; next }
+              /=======/ { next }
+              />>>>>>>/ { in_conflict = 0; next }
+              {
+                if (!in_conflict) {
+                  # Eliminar duplicados manteniendo solo la primera aparición
+                  if ($0 ~ /^\[.*\]$/) {
+                    section = $0
+                    print section
+                  } else if ($0 ~ /^[^#]/ && $0 !~ /^$/ && $0 !~ /^\[/) {
+                    key = $0
+                    gsub(/=.*/, "", key)
+                    gsub(/\s+/, "", key)
+                    if (!(key in seen)) {
+                      seen[key] = 1
+                      print $0
+                    }
+                  } else {
+                    print $0
+                  }
+                }
+              }
+            ' gradle/libs.versions.toml > gradle/libs.versions.toml.resolved
+            
             mv gradle/libs.versions.toml.resolved gradle/libs.versions.toml
             git add gradle/libs.versions.toml
-            git cherry-pick --continue
+            git cherry-pick --continue || true
           fi
       - name: Remove telemetry module and references
         run: >
