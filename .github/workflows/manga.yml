@@ -1,4 +1,3 @@
----
 name: Build & Sign Mihon 32bits APK
 on:
   workflow_dispatch: null
@@ -6,162 +5,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone Mihon source
-        run: |
-          git clone --depth 1 https://github.com/mihonapp/mihon.git
-      - name: Set up git identity
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-      - name: Cherry-pick from Kahon with TOML conflict resolution
-        run: >
-          set -e
+      - name: Clone repository
+        run: git clone --depth 1 https://github.com/nubesurrealista/mihon.git
 
-          cd mihon
-
-          git remote add kahon https://github.com/AmanoTeam/Kahon.git
-
-          git fetch kahon
-
-
-          # Cherry-pick commits con resolución manual de conflictos TOML
-
-          git cherry-pick 16580dadfdff3a4ed20b57b2f03c4f90f715d983 || true
-
-
-          # Resolver conflictos en el TOML antes del segundo cherry-pick
-
-          if [ -f gradle/libs.versions.toml ]; then
-            # Eliminar duplicados manteniendo solo la primera definición
-            awk '
-              BEGIN {
-                FS = "="
-                OFS = "="
-                current_section = ""
-                delete seen
-              }
-              /^\[.*\]/ {
-                current_section = $0
-                print
-                next
-              }
-              /^[^#]/ && NF > 0 {
-                key = $1
-                gsub(/^[ \t]+/, "", key)
-                gsub(/[ \t]+$/, "", key)
-                
-                if (!(current_section key in seen)) {
-                  seen[current_section key] = 1
-                  print
-                }
-                next
-              }
-              { print }
-            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp
-            mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
-          fi
-
-
-          git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || true
-
-
-          # Resolver conflictos post cherry-pick
-
-          if [ -f gradle/libs.versions.toml ]; then
-            # Eliminar marcadores de conflicto
-            sed -i '/^<<<<<<</d; /^=======/d; /^>>>>>>>/d' gradle/libs.versions.toml
-            
-            # Eliminar duplicados nuevamente
-            awk '
-              BEGIN {
-                FS = "="
-                OFS = "="
-                current_section = ""
-                delete seen
-              }
-              /^\[.*\]/ {
-                current_section = $0
-                print
-                next
-              }
-              /^[^#]/ && NF > 0 {
-                key = $1
-                gsub(/^[ \t]+/, "", key)
-                gsub(/[ \t]+$/, "", key)
-                
-                if (!(current_section key in seen)) {
-                  seen[current_section key] = 1
-                  print
-                }
-                next
-              }
-              { print }
-            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp
-            mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
-          fi
-
-
-          git add gradle/libs.versions.toml || true
-      - name: Clean and verify TOML file
-        run: >
-          cd mihon
-
-          # Limpieza final del TOML
-
-          if [ -f gradle/libs.versions.toml ]; then
-            # Eliminar entradas específicas no deseadas
-            sed -i '/firebase-bom/d; /firebase-analytics/d; /firebase-crashlytics/d; /google-services/d' gradle/libs.versions.toml
-            
-            # Eliminar líneas vacías y espacios innecesarios
-            sed -i '/^$/d; s/[[:space:]]*$//' gradle/libs.versions.toml
-            
-            # Verificar sintaxis TOML básica
-            if grep -q '^[^#]*=[^=]*$' gradle/libs.versions.toml; then
-              echo "TOML file syntax appears valid"
-            else
-              echo "Warning: Potential TOML syntax issues detected"
-            fi
-          fi
-
-
-          ./gradlew clean
-      - name: Remove telemetry module and references
-        run: >
-          cd mihon
-
-          rm -rf telemetry
-
-          sed -i '/include(":telemetry")/d' settings.gradle.kts || true
-
-          sed -i '/firebase.crashlytics/d; /google.services/d' build.gradle.kts || true
-
-          sed -i '/includeTelemetry/d' buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt || true
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - name: Decode keystore into app dir
+
+      - name: Decode keystore
         run: |
           cd mihon
           echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > app/nube.p12
-      - name: Build all release APKs
+
+      - name: Build release APKs
         run: |
           cd mihon
           ./gradlew assembleRelease --stacktrace
+
       - name: Sign armeabi-v7a APK
-        run: >
+        run: |
           cd mihon
-
           APK_PATH=app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-
-          if [ ! -f "$APK_PATH" ]; then
-            echo "No se encontró el APK unsigned armeabi-v7a release"
-            exit 1
-          fi
-
-          echo "APK unsigned encontrado en: $APK_PATH"
-
+          [ -f "$APK_PATH" ] || { echo "APK not found"; exit 1; }
           "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
             --ks app/nube.p12 \
             --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
@@ -169,11 +36,8 @@ jobs:
             --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
             --out app/build/outputs/apk/release/mihon-armeabi-v7a-release-signed.apk \
             "$APK_PATH"
-      - name: List APKs (signed)
-        run: |
-          cd mihon/app/build/outputs/apk/release
-          ls -lh mihon-armeabi-v7a-release-signed.apk
-      - name: Upload signed armeabi-v7a APK artifact
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mihon-armeabi-v7a-apk
