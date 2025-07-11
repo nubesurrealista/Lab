@@ -13,33 +13,103 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-      - name: Cherry-pick from Kahon
+      - name: Cherry-pick from Kahon (with proper conflict resolution)
         run: |
           set -e
           cd mihon
           git remote add kahon https://github.com/AmanoTeam/Kahon.git
           git fetch kahon
-          git cherry-pick 16580dadfdff3a4ed20b57b2f03c4f90f715d983 || true
-          git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || true
+
+          git cherry-pick 16580dadfdff3a4ed20b57b2f03c4f90f715d983 || \
+            { git cherry-pick --abort; exit 1; }
+
+          git cherry-pick c56212ddfb67427bea6758d3963e863a5c2d0a8f || \
+            { 
+              if [ -f gradle/libs.versions.toml ]; then
+                sed -i '/^<<<<<<</d' gradle/libs.versions.toml
+                sed -i '/^=======/d' gradle/libs.versions.toml
+                sed -i '/^>>>>>>>/d' gradle/libs.versions.toml
+                sed -i '/^</d' gradle/libs.versions.toml
+                
+                awk '
+                  BEGIN { in_section = ""; seen = {} }
+                  /^\[.*\]$/ { 
+                    in_section = $0
+                    print $0
+                    next
+                  }
+                  /^[[:space:]]*[^#]/ && in_section != "" {
+                    key = $0
+                    gsub(/[[:space:]]*=.*/, "", key)
+                    gsub(/^[[:space:]]+/, "", key)
+                    if (!(in_section key in seen)) {
+                      seen[in_section key] = 1
+                      print $0
+                    }
+                    next
+                  }
+                  { print }
+                ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp && \
+                mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
+              fi
+              
+              git add .
+              git cherry-pick --continue
+            }
       - name: Remove telemetry module and references
-        run: |
+        run: >
           cd mihon
+
+          if [ -f gradle/libs.versions.toml ]; then
+            sed -i '/^</d' gradle/libs.versions.toml
+            sed -i '/^[[:space:]]*$/d' gradle/libs.versions.toml
+            awk '
+              /^\[.*\]$/ { 
+                section = $0
+                print section
+                next
+              }
+              /^[[:space:]]*[^#=]/ {
+                if (section != "") {
+                  print $0
+                }
+                next
+              }
+              { print }
+            ' gradle/libs.versions.toml > gradle/libs.versions.toml.tmp && \
+            mv gradle/libs.versions.toml.tmp gradle/libs.versions.toml
+          fi
+
+
           rm -rf telemetry
+
           sed -i '/include(":telemetry")/d' settings.gradle.kts || true
+
           sed -i '/firebase.crashlytics/d' build.gradle.kts || true
+
           sed -i '/google.services/d' build.gradle.kts || true
+
           sed -i '/includeTelemetry/d' buildSrc/src/main/kotlin/mihon/buildlogic/BuildConfig.kt || true
+
           sed -i '/firebase-bom/d' gradle/libs.versions.toml || true
+
           sed -i '/firebase-analytics/d' gradle/libs.versions.toml || true
+
           sed -i '/firebase-crashlytics/d' gradle/libs.versions.toml || true
+
           sed -i '/google-services/d' gradle/libs.versions.toml || true
+
           sed -i '/ktlint/d' gradle/libs.versions.toml || true
+
           sed -i '/ktlint/d' buildSrc/src/main/kotlin/mihon.code.lint.gradle.kts || true
+
           sed -i '/ktlint/d' build.gradle.kts || true
+
 
           if [ -f app/src/main/java/eu/kanade/tachiyomi/util/system/BuildConfig.kt ]; then
             sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/tachiyomi/util/system/BuildConfig.kt
           fi
+
 
           if [ -f app/src/main/java/eu/kanade/tachiyomi/App.kt ]; then
             sed -i '/TelemetryConfig/d' app/src/main/java/eu/kanade/tachiyomi/App.kt
@@ -47,11 +117,13 @@ jobs:
             sed -i '/crashlytics()/,/launchIn/d' app/src/main/java/eu/kanade/tachiyomi/App.kt
           fi
 
+
           if [ -f app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt ]; then
             sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
             sed -i '/Crashlytics\|Analytics\|crashlytics\|analytics/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
             sed -i '/HorizontalDivider/d' app/src/main/java/eu/kanade/presentation/more/onboarding/PermissionStep.kt
           fi
+
 
           if [ -f app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt ]; then
             sed -i '/telemetryIncluded/d' app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt
@@ -60,6 +132,7 @@ jobs:
               app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt > tmp && \
               mv tmp app/src/main/java/eu/kanade/presentation/more/settings/screen/SettingsSecurityScreen.kt
           fi
+
 
           ./gradlew clean
       - name: Set up JDK 17
@@ -76,14 +149,18 @@ jobs:
           cd mihon
           ./gradlew assembleRelease --stacktrace
       - name: Sign armeabi-v7a APK
-        run: |
+        run: >
           cd mihon
+
           APK_PATH=app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+
           if [ ! -f "$APK_PATH" ]; then
             echo "No se encontró el APK unsigned armeabi-v7a release"
             exit 1
           fi
+
           echo "APK unsigned encontrado en: $APK_PATH"
+
           "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
             --ks app/nube.p12 \
             --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
