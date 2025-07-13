@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        run: git clone --depth 1 --branch rebrand https://github.com/nubesurrealista/mihon.git
+        run: git clone --depth 1 --branch test https://github.com/nubesurrealista/kumo.git
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -34,12 +34,12 @@ jobs:
             --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
             --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
             --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
-            --out app/build/outputs/apk/release/mihon-armeabi-v7a-release-signed.apk \
+            --out app/build/outputs/apk/release/kumo-armeabi-v7a-release-signed.apk \
             "$APK_PATH"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kumo-armeabi-v7a-apk
-          path: mihon/app/build/outputs/apk/release/mihon-armeabi-v7a-release-signed.apk
+          path: kumo/app/build/outputs/apk/release/kumotest-armeabi-v7a-release-signed.apk
           if-no-files-found: error
