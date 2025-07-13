@@ -1,4 +1,4 @@
-name: Build & Sign Mihon 32bits APK
+name: Build & Sign kumo 32bits APK
 on:
   workflow_dispatch: null
 jobs:
@@ -16,17 +16,17 @@ jobs:
 
       - name: Decode keystore
         run: |
-          cd mihon
+          cd kumo
           echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > app/nube.p12
 
       - name: Build release APKs
         run: |
-          cd mihon
+          cd kumo
           ./gradlew assembleRelease --stacktrace
 
       - name: Sign armeabi-v7a APK
         run: |
-          cd mihon
+          cd kumo
           APK_PATH=app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
           [ -f "$APK_PATH" ] || { echo "APK not found"; exit 1; }
           "$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)/apksigner" sign \
