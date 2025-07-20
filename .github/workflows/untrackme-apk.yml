@@ -14,7 +14,7 @@ jobs:
           java-version: '11'
 
       - name: Clone UntrackMe repo
-        run: git clone --depth 1 https://framagit.org/tom79/nitterizeme.git
+        run: git clone --depth 1 https://github.com/nubesurrealista/Untrackme-fork.git
 
       - name: Decode keystore into app dir
         run: |
