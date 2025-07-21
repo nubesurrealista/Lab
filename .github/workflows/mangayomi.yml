@@ -1,4 +1,4 @@
-name: Build Mangayomi (Flutter + Rust + WebView Patch)
+name: Build Mangayomi (Flutter + Rust on Debian)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ jobs:
       image: debian:stable-slim
 
     steps:
-      - name: 🧰 Instalar dependencias
+      - name: 🧰 Instalar dependencias base
         run: |
           apt update
           apt install -y \
@@ -20,7 +20,7 @@ jobs:
             libgtk-3-dev liblzma-dev libgl1-mesa-dev \
             libglu1-mesa libgdk-pixbuf2.0-dev \
             libssl-dev libclang-dev python3 python3-pip \
-            ninja-build g++ libwebkit2gtk-4.0-dev
+            ninja-build g++
 
       - name: 🐍 Instalar Flutter 3.32.7
         run: |
@@ -37,17 +37,11 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           ~/.cargo/bin/cargo install flutter_rust_bridge_codegen
 
-      - name: 📥 Clonar Mangayomi y obtener dependencias
+      - name: 📥 Clonar Mangayomi y preparar entorno
         run: |
           git clone https://github.com/kodjodevf/mangayomi.git
           cd mangayomi
           /opt/flutter/bin/flutter pub get
-
-      - name: 🧩 Parchear plugin WebView para webkit2gtk-4.0
-        working-directory: mangayomi
-        run: |
-          sed -i 's/webkit2gtk-4.1/webkit2gtk-4.0/' \
-            flutter/ephemeral/.plugin_symlinks/desktop_webview_window/linux/CMakeLists.txt
 
       - name: 🔧 Generar puente Rust ↔️ Flutter
         working-directory: mangayomi
@@ -57,7 +51,7 @@ jobs:
         working-directory: mangayomi
         run: /opt/flutter/bin/flutter build linux
 
-      - name: 📤 Subir binario compilado
+      - name: 📤 Subir binario como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: mangayomi-linux
