@@ -1,0 +1,43 @@
+name: Build Leafpad from tarot231 repo
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Clone Leafpad repository
+        run: |
+          git clone https://github.com/tarot231/leafpad.git
+          cd leafpad
+
+      - name: 🧰 Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            autoconf automake intltool \
+            libgtk2.0-dev libglib2.0-dev \
+            build-essential gettext
+
+      - name: 🔧 Prepare build system
+        working-directory: leafpad
+        run: autoreconf -i
+
+      - name: ⚙️ Configure build
+        working-directory: leafpad
+        run: ./configure
+
+      - name: 🏗️ Build Leafpad
+        working-directory: leafpad
+        run: make
+
+      - name: 📤 Upload executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: leafpad-binary
+          path: leafpad/src/leafpad
