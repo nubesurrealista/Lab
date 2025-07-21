@@ -43,7 +43,11 @@ jobs:
           cd mangayomi
           /opt/flutter/bin/flutter pub get
 
-      - name: 🧩 Parchear plugin WebView si existe
+      - name: 🔧 Generar puente Rust ↔️ Flutter
+        working-directory: mangayomi
+        run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
+
+      - name: 🧩 Parchear plugin WebView antes del build
         working-directory: mangayomi
         run: |
           FILE="flutter/ephemeral/.plugin_symlinks/desktop_webview_window/linux/CMakeLists.txt"
@@ -53,10 +57,6 @@ jobs:
           else
             echo "✅ Plugin WebView no detectado. Nada que parchear."
           fi
-
-      - name: 🔧 Generar puente Rust ↔️ Flutter
-        working-directory: mangayomi
-        run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
 
       - name: 🏗️ Compilar Mangayomi para Linux
         working-directory: mangayomi
