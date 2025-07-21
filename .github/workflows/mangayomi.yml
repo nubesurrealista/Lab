@@ -1,4 +1,4 @@
-name: Build Mangayomi (Debian + Flutter + Rust)
+name: Build Mangayomi with Flutter 3.32.7
 
 on:
   workflow_dispatch:
@@ -21,11 +21,12 @@ jobs:
             libglu1-mesa libgdk-pixbuf2.0-dev \
             libssl-dev libclang-dev python3 python3-pip
 
-      - name: 🐍 Instalar Flutter SDK
+      - name: 🐍 Instalar Flutter SDK 3.32.7
         run: |
-          curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.0-stable.tar.xz
-          tar xf flutter_linux_3.22.0-stable.tar.xz
+          curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.7-stable.tar.xz
+          tar xf flutter_linux_3.32.7-stable.tar.xz
           mv flutter /opt/flutter
+          git config --global --add safe.directory /opt/flutter
           echo 'export PATH="/opt/flutter/bin:$PATH"' >> $GITHUB_ENV
           /opt/flutter/bin/flutter doctor -v
 
