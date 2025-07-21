@@ -1,15 +1,12 @@
+---
 name: Build Mangayomi (Linux - Flutter + Rust)
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build-linux:
     runs-on: ubuntu-latest
-
     container:
       image: debian:stable-slim
-
     steps:
       - name: 🧰 Instalar dependencias base
         run: |
@@ -21,64 +18,60 @@ jobs:
             libglu1-mesa libgdk-pixbuf2.0-dev \
             libssl-dev libclang-dev python3 python3-pip \
             ninja-build g++ libwebkit2gtk-4.0-dev
-
       - name: 🐍 Instalar Flutter 3.32.7
-        run: |
-          curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.7-stable.tar.xz
-          tar xf flutter_linux_3.32.7-stable.tar.xz
-          mv flutter /opt/flutter
-          echo "/opt/flutter/bin" >> $GITHUB_PATH
-          git config --global --add safe.directory /opt/flutter
-          /opt/flutter/bin/flutter doctor -v
+        run: >
+          curl -O
+          https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.7-stable.tar.xz
 
+          tar xf flutter_linux_3.32.7-stable.tar.xz
+
+          mv flutter /opt/flutter
+
+          echo "/opt/flutter/bin" >> $GITHUB_PATH
+
+          git config --global --add safe.directory /opt/flutter
+
+          /opt/flutter/bin/flutter doctor -v
       - name: 🦀 Instalar Rust y flutter_rust_bridge_codegen
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           ~/.cargo/bin/cargo install flutter_rust_bridge_codegen
-
       - name: 📥 Clonar Mangayomi y preparar entorno
         run: |
           git clone https://github.com/kodjodevf/mangayomi.git
           cd mangayomi
           /opt/flutter/bin/flutter pub get
-
       - name: 🔧 Generar puente Rust ↔️ Flutter
         working-directory: mangayomi
         run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
-
       - name: 🧩 Parchear plugin WebView anticipadamente
         working-directory: mangayomi
         run: |
           DIR="flutter/ephemeral/.plugin_symlinks/desktop_webview_window/linux"
           FILE="$DIR/CMakeLists.txt"
           mkdir -p "$DIR"
-          echo "⚙️ Creando CMakeLists.txt parchado antes del build..."
-          cat > "$FILE" <<EOF
-cmake_minimum_required(VERSION 3.10)
-project(desktop_webview_window_linux)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.0)
-
-add_library(webview SHARED
-  webview_window_plugin.cc
-)
-
-target_include_directories(webview PUBLIC
-  \${WEBKIT_INCLUDE_DIRS}
-)
-
-target_link_libraries(webview
-  \${WEBKIT_LIBRARIES}
-)
-EOF
-
-      - name: 🚧 Forzar compilación parcial para validar entorno
+          echo "cmake_minimum_required(VERSION 3.10)" > "$FILE"
+          echo "project(desktop_webview_window_linux)" >> "$FILE"
+          echo "" >> "$FILE"
+          echo "find_package(PkgConfig REQUIRED)" >> "$FILE"
+          echo "pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.0)" >> "$FILE"
+          echo "" >> "$FILE"
+          echo "add_library(webview SHARED" >> "$FILE"
+          echo "  webview_window_plugin.cc" >> "$FILE"
+          echo ")" >> "$FILE"
+          echo "" >> "$FILE"
+          echo "target_include_directories(webview PUBLIC" >> "$FILE"
+          echo "  \${WEBKIT_INCLUDE_DIRS}" >> "$FILE"
+          echo ")" >> "$FILE"
+          echo "" >> "$FILE"
+          echo "target_link_libraries(webview" >> "$FILE"
+          echo "  \${WEBKIT_LIBRARIES}" >> "$FILE"
+          echo ")" >> "$FILE"
+      - name: 🚧 Validar entorno (compilación parcial)
         working-directory: mangayomi
         continue-on-error: true
         run: /opt/flutter/bin/flutter build linux --no-pub
-
       - name: 🏗 Compilar Mangayomi para Linux
         working-directory: mangayomi
         run: /opt/flutter/bin/flutter build linux
