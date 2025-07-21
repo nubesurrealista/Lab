@@ -1,10 +1,7 @@
-name: Build Leafpad from tarot231 repo
+name: Build Leafpad (Manual Dispatch)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
@@ -16,7 +13,7 @@ jobs:
           git clone https://github.com/tarot231/leafpad.git
           cd leafpad
 
-      - name: 🧰 Install build dependencies
+      - name: 🧰 Install dependencies
         run: |
           sudo apt update
           sudo apt install -y \
@@ -28,16 +25,16 @@ jobs:
         working-directory: leafpad
         run: autoreconf -i
 
-      - name: ⚙️ Configure build
+      - name: ⚙️ Configure project
         working-directory: leafpad
         run: ./configure
 
-      - name: 🏗️ Build Leafpad
+      - name: 🏗️ Compile Leafpad
         working-directory: leafpad
         run: make
 
-      - name: 📤 Upload executable
-        uses: actions/upload-artifact@v3
+      - name: 📤 Upload compiled binary
+        uses: actions/upload-artifact@v4
         with:
-          name: leafpad-binary
+          name: leafpad
           path: leafpad/src/leafpad
