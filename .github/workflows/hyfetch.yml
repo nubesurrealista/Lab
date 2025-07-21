@@ -1,4 +1,4 @@
-name: Build HyFetch on Debian
+name: Build HyFetch (Debian, minimal)
 
 on:
   workflow_dispatch:
@@ -11,17 +11,17 @@ jobs:
       image: debian:stable-slim
 
     steps:
-      - name: 🧰 Install dependencies
+      - name: 📦 Install dependencies
         run: |
           apt update
           apt install -y \
             git curl build-essential \
             libssl-dev pkg-config \
             libclang-dev clang \
-            gcc make \
+            make gcc \
             rustc cargo
 
-      - name: 📥 Clone HyFetch repo
+      - name: 📥 Clone HyFetch
         run: |
           git clone https://github.com/hykilpikonna/hyfetch.git
           cd hyfetch
