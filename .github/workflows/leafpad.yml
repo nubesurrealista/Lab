@@ -1,37 +1,31 @@
-name: Build Leafpad (Manual Dispatch)
+name: Build Leafpad on Debian
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # base para correr Docker
+
+    container:
+      image: debian:stable-slim
 
     steps:
-      - name: 📦 Clone Leafpad repository
+      - name: 📦 Install dependencies
+        run: |
+          apt update
+          DEBIAN_FRONTEND=noninteractive apt install -y \
+            git build-essential autoconf automake \
+            libgtk2.0-dev libglib2.0-dev intltool gettext
+
+      - name: 📥 Clone Leafpad repo
         run: |
           git clone https://github.com/tarot231/leafpad.git
           cd leafpad
 
-      - name: 🧰 Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            autoconf automake intltool \
-            libgtk2.0-dev libglib2.0-dev \
-            build-essential gettext
-
-      - name: 🔧 Prepare build system
-        working-directory: leafpad
-        run: autoreconf -i
-
-      - name: ⚙️ Configure project
-        working-directory: leafpad
-        run: ./configure
-
-      - name: 🏗️ Compile Leafpad
-        working-directory: leafpad
-        run: make
+          autoreconf -i
+          ./configure
+          make
 
       - name: 📤 Upload compiled binary
         uses: actions/upload-artifact@v4
