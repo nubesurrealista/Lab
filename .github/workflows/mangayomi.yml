@@ -1,4 +1,4 @@
-name: Build Mangayomi with Flutter 3.32.7
+name: Build Mangayomi (Linux Flutter + Rust)
 
 on:
   workflow_dispatch:
@@ -15,20 +15,20 @@ jobs:
         run: |
           apt update
           apt install -y \
-            curl git unzip xz-utils zip \
+            curl git unzip xz-utils zip ca-certificates \
             build-essential clang cmake pkg-config \
             libgtk-3-dev liblzma-dev libgl1-mesa-dev \
             libglu1-mesa libgdk-pixbuf2.0-dev \
             libssl-dev libclang-dev python3 python3-pip
 
-      - name: 🐍 Instalar Flutter SDK 3.32.7
+      - name: 🐍 Instalar Flutter 3.32.7
         run: |
           curl -O https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.32.7-stable.tar.xz
           tar xf flutter_linux_3.32.7-stable.tar.xz
           mv flutter /opt/flutter
+          echo "/opt/flutter/bin" >> $GITHUB_PATH
           git config --global --add safe.directory /opt/flutter
-          echo 'export PATH="/opt/flutter/bin:$PATH"' >> $GITHUB_ENV
-          /opt/flutter/bin/flutter doctor -v
+          /opt/flutter/bin/flutter doctor
 
       - name: 🦀 Instalar Rust y flutter_rust_bridge_codegen
         run: |
@@ -36,21 +36,21 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           ~/.cargo/bin/cargo install flutter_rust_bridge_codegen
 
-      - name: 📥 Clonar Mangayomi
+      - name: 📥 Clonar Mangayomi y resolver dependencias
         run: |
           git clone https://github.com/kodjodevf/mangayomi.git
           cd mangayomi
           /opt/flutter/bin/flutter pub get
 
-      - name: 🔧 Generar código puente Rust ↔️ Flutter
+      - name: 🔧 Generar puente Flutter ↔️ Rust
         working-directory: mangayomi
         run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
 
-      - name: 🏗️ Compilar Mangayomi (Linux)
+      - name: 🏗️ Compilar Mangayomi para Linux
         working-directory: mangayomi
         run: /opt/flutter/bin/flutter build linux
 
-      - name: 📤 Subir binario como artefacto
+      - name: 📤 Subir binario compilado
         uses: actions/upload-artifact@v4
         with:
           name: mangayomi-linux
