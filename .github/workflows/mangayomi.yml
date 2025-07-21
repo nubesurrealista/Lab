@@ -27,30 +27,29 @@ jobs:
           tar xf flutter_linux_3.22.0-stable.tar.xz
           mv flutter /opt/flutter
           echo 'export PATH="/opt/flutter/bin:$PATH"' >> $GITHUB_ENV
-          /opt/flutter/bin/flutter doctor
+          /opt/flutter/bin/flutter doctor -v
 
       - name: 🦀 Instalar Rust y flutter_rust_bridge_codegen
         run: |
           curl https://sh.rustup.rs -sSf | bash -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          source $HOME/.cargo/env
-          cargo install flutter_rust_bridge_codegen
+          ~/.cargo/bin/cargo install flutter_rust_bridge_codegen
 
       - name: 📥 Clonar Mangayomi
         run: |
           git clone https://github.com/kodjodevf/mangayomi.git
           cd mangayomi
-          flutter pub get
+          /opt/flutter/bin/flutter pub get
 
-      - name: 🔧 Generar puente Rust ↔️ Flutter
+      - name: 🔧 Generar código puente Rust ↔️ Flutter
         working-directory: mangayomi
-        run: flutter_rust_bridge_codegen generate
+        run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
 
       - name: 🏗️ Compilar Mangayomi (Linux)
         working-directory: mangayomi
-        run: flutter build linux
+        run: /opt/flutter/bin/flutter build linux
 
-      - name: 📤 Subir binario compilado
+      - name: 📤 Subir binario como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: mangayomi-linux
