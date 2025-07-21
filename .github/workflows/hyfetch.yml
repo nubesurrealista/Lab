@@ -1,0 +1,34 @@
+name: Build HyFetch on Debian
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: debian:stable-slim
+
+    steps:
+      - name: 🧰 Install dependencies
+        run: |
+          apt update
+          apt install -y \
+            git curl build-essential \
+            libssl-dev pkg-config \
+            libclang-dev clang \
+            gcc make \
+            rustc cargo
+
+      - name: 📥 Clone HyFetch repo
+        run: |
+          git clone https://github.com/hykilpikonna/hyfetch.git
+          cd hyfetch
+          cargo build --release
+
+      - name: 📤 Upload HyFetch binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyfetch
+          path: hyfetch/target/release/hyfetch
