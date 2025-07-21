@@ -47,7 +47,12 @@ jobs:
         working-directory: mangayomi
         run: ~/.cargo/bin/flutter_rust_bridge_codegen generate
 
-      - name: 🧩 Parchear plugin WebView antes del build
+      - name: 🚧 Forzar compilación parcial para activar plugin
+        working-directory: mangayomi
+        continue-on-error: true
+        run: /opt/flutter/bin/flutter build linux --no-pub
+
+      - name: 🧩 Parchear plugin WebView tras generación
         working-directory: mangayomi
         run: |
           FILE="flutter/ephemeral/.plugin_symlinks/desktop_webview_window/linux/CMakeLists.txt"
@@ -55,7 +60,8 @@ jobs:
             echo "⚙️ Plugin WebView detectado. Aplicando parche..."
             sed -i 's/webkit2gtk-4.1/webkit2gtk-4.0/' "$FILE"
           else
-            echo "✅ Plugin WebView no detectado. Nada que parchear."
+            echo "❌ Plugin WebView no apareció. El build fallará si se requiere."
+            exit 1
           fi
 
       - name: 🏗️ Compilar Mangayomi para Linux
