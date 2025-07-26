@@ -10,6 +10,7 @@ on:
 env:
   BUILD_DIR: build
   ARTIFACT_NAME: falkon_binary
+  ECM_VERSION: 5.240.0
 
 jobs:
   build:
@@ -20,12 +21,11 @@ jobs:
         git clone --recursive https://invent.kde.org/network/falkon.git falkon
         cd falkon
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           cmake \
-          extra-cmake-modules \
           qtbase5-dev \
           qtdeclarative5-dev \
           qtwebengine5-dev \
@@ -35,7 +35,18 @@ jobs:
           libkf5i18n-dev \
           libkf5wallet-dev \
           libkf5config-dev \
-          gettext
+          gettext \
+          ninja-build
+
+    - name: Install ECM from source
+      run: |
+        git clone https://invent.kde.org/frameworks/extra-cmake-modules.git
+        cd extra-cmake-modules
+        git checkout v${{ env.ECM_VERSION }}
+        mkdir build && cd build
+        cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+        sudo make install
+        cd ../..
 
     - name: Create build directory
       run: mkdir -p ${{ env.BUILD_DIR }}
@@ -48,12 +59,13 @@ jobs:
           -DCMAKE_CXX_FLAGS="-O3 -pipe -fPIC" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DCMAKE_C_FLAGS="-O3 -pipe -fPIC" \
-          -DBUILD_TESTING=OFF
+          -DBUILD_TESTING=OFF \
+          -GNinja
 
-    - name: Build with Make
+    - name: Build with Ninja
       working-directory: ${{ env.BUILD_DIR }}
       run: |
-        make -j$(nproc) --silent
+        ninja
 
     - name: Strip binary (reduce size)
       working-directory: ${{ env.BUILD_DIR }}
