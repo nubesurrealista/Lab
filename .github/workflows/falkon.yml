@@ -69,7 +69,7 @@ jobs:
         tar czf ${{ env.ARTIFACT_NAME }}.tar.gz package/
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ env.ARTIFACT_NAME }}
         path: ${{ env.BUILD_DIR }}/${{ env.ARTIFACT_NAME }}.tar.gz
