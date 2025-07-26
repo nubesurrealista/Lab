@@ -1,31 +1,28 @@
 name: Build Falkon
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
   BUILD_DIR: build
   ARTIFACT_NAME: falkon_binary
-  ECM_VERSION: 5.240.0
+  ECM_VERSION: v6.16.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Clone Falkon repository
+    - name: Checkout Falkon
       run: |
-        git clone --recursive https://invent.kde.org/network/falkon.git falkon
+        git clone --depth=1 --branch=master --recursive https://invent.kde.org/network/falkon.git falkon
         cd falkon
 
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           cmake \
+          ninja-build \
           qtbase5-dev \
           qtdeclarative5-dev \
           qtwebengine5-dev \
@@ -36,51 +33,52 @@ jobs:
           libkf5wallet-dev \
           libkf5config-dev \
           gettext \
-          ninja-build
+          libssl-dev \
+          extra-cmake-modules
 
-    - name: Install ECM from source
+    - name: Install ECM (specific version)
+      if: ${{ !contains(github.event.inputs.skip_ecm_install, 'true') }}
       run: |
-        git clone https://invent.kde.org/frameworks/extra-cmake-modules.git
+        git clone --depth=1 https://invent.kde.org/frameworks/extra-cmake-modules.git
         cd extra-cmake-modules
-        git checkout v${{ env.ECM_VERSION }}
+        git checkout ${{ env.ECM_VERSION }}
         mkdir build && cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-        sudo make install
+        cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -GNinja
+        sudo ninja install
         cd ../..
 
-    - name: Create build directory
-      run: mkdir -p ${{ env.BUILD_DIR }}
-
-    - name: Configure CMake
-      working-directory: ${{ env.BUILD_DIR }}
+    - name: Configure build
       run: |
-        cmake ../falkon \
+        mkdir -p ${{ env.BUILD_DIR }}
+        cd ${{ env.BUILD_DIR }}
+        cmake .. \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_FLAGS="-O3 -pipe -fPIC" \
+          -DCMAKE_CXX_FLAGS="-O3 -pipe -fPIC -flto=auto" \
+          -DCMAKE_C_FLAGS="-O3 -pipe -fPIC -flto=auto" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-          -DCMAKE_C_FLAGS="-O3 -pipe -fPIC" \
           -DBUILD_TESTING=OFF \
           -GNinja
 
-    - name: Build with Ninja
-      working-directory: ${{ env.BUILD_DIR }}
+    - name: Build Falkon
       run: |
-        ninja
+        cd ${{ env.BUILD_DIR }}
+        ninja -j$(nproc)
 
-    - name: Strip binary (reduce size)
-      working-directory: ${{ env.BUILD_DIR }}
+    - name: Optimize binary size
       run: |
+        cd ${{ env.BUILD_DIR }}
         strip -s src/falkon
+        upx --best --lzma src/falkon || echo "UPX not installed, skipping further compression"
 
-    - name: Package binary
-      working-directory: ${{ env.BUILD_DIR }}
+    - name: Prepare artifact
       run: |
         mkdir -p package
-        cp src/falkon package/
-        tar czf ${{ env.ARTIFACT_NAME }}.tar.gz package/
+        cp ${{ env.BUILD_DIR }}/src/falkon package/
+        tar -czf ${{ env.ARTIFACT_NAME }}.tar.gz package/
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.ARTIFACT_NAME }}
-        path: ${{ env.BUILD_DIR }}/${{ env.ARTIFACT_NAME }}.tar.gz
+        path: ${{ env.ARTIFACT_NAME }}.tar.gz
+        retention-days: 5
