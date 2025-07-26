@@ -15,11 +15,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        repository: 'https://invent.kde.org/network/falkon.git'
+    - name: Clone Falkon repository
+      run: |
+        git clone --recursive https://invent.kde.org/network/falkon.git falkon
+        cd falkon
 
     - name: Install dependencies
       run: |
@@ -44,7 +43,7 @@ jobs:
     - name: Configure CMake
       working-directory: ${{ env.BUILD_DIR }}
       run: |
-        cmake .. \
+        cmake ../falkon \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_FLAGS="-O3 -pipe -fPIC" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
