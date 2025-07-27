@@ -1,7 +1,7 @@
 name: Build InstallerX
 
 on:
-  workflow_dispatch:  # Ejecución manual sin parámetros
+  workflow_dispatch:
 
 jobs:
   build:
@@ -35,19 +35,8 @@ jobs:
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
 
-      - name: Extract Version Name  # Extrae la versión del build.gradle.kts
-        id: version
-        run: |
-          VERSION=$(grep 'versionName' app/build.gradle.kts | cut -d '"' -f 2)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-
       - name: Build APK (ARMv7 only)
         run: ./gradlew assembleStableRelease -PabiFilters=armeabi-v7a
-
-      - name: Rename APK
-        run: |
-          APK_PATH=$(ls app/build/outputs/apk/Stable/release/*armeabi-v7a*.apk)
-          mv "$APK_PATH" "app/build/outputs/apk/Stable/release/InstallerX-Revived-${{ steps.version.outputs.version }}-armeabi-v7a.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
