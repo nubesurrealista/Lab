@@ -1,8 +1,6 @@
 name: MangaReader CI/CD
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -11,8 +9,8 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Checkout MangaReader
-        uses: actions/checkout@v4
+      - name: Clone MangaReader repo
+        run: git clone --depth 1 https://github.com/nubesurrealista/MangaReader.git
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -28,12 +26,13 @@ jobs:
 
       - name: Decode keystore
         run: |
+          cd MangaReader
           echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > app/nube.p12
           chmod 600 app/nube.p12
 
       - name: Configure signing
         run: |
-          cd app
+          cd MangaReader/app
           if ! grep -q 'signingConfigs' build.gradle.kts; then
             awk '
               /android[[:space:]]*{/ && !done {
@@ -60,12 +59,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
+          cd MangaReader
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Collect APKs
         run: |
-          mkdir -p apk-out
-          find . -name "*.apk" -exec cp {} apk-out/ \;
+          cd MangaReader
+          mkdir -p ../apk-out
+          find . -name "*.apk" -exec cp {} ../apk-out/ \;
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -75,4 +76,5 @@ jobs:
 
       - name: Clean sensitive files
         run: |
+          cd MangaReader
           rm -f app/nube.p12
