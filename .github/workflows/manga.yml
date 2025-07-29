@@ -24,6 +24,9 @@ jobs:
           ndk-version: "25.1.8937393"
           cmake-version: "3.22.1"
 
+      - name: Set execute permission for gradlew
+        run: chmod +x MangaReader/gradlew
+
       - name: Decode keystore
         run: |
           cd MangaReader
