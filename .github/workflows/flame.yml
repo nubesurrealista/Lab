@@ -1,0 +1,50 @@
+name: Build and Package Fluent Reader tar.gz
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-targz:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Fluent Reader repository
+        run: git clone --depth 1 --branch startpage https://github.com/FluentFlame/fluent-flame-reader.git fluent-reader
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: fluent-reader
+        run: npm install
+
+      - name: Compile TypeScript and dependencies
+        working-directory: fluent-reader
+        run: npm run build
+
+      - name: Build tar.gz
+        working-directory: fluent-reader
+        run: npx electron-builder --linux tar.gz --publish never
+
+      - name: List all tar.gz files in workspace
+        run: find $GITHUB_WORKSPACE -name '*.tar.gz' -print
+
+      - name: Sign tar.gz externally with GPG
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          TARBALL=$(find . -name '*.tar.gz' | head -n 1)
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --detach-sign --armor "$TARBALL"
+          gpg --batch --yes --delete-secret-keys
+
+      - name: Upload tar.gz and signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluentReader-tar.gz
+          path: |
+            **/*.tar.gz
+            **/*.tar.gz.asc
