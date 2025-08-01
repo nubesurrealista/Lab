@@ -1,0 +1,55 @@
+name: Build fluent
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-appimage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Fluent Reader repository
+        run: git clone --depth 1 --branch startpage https://github.com/FluentFlame/fluent-flame-reader.git fluent-reader
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: fluent-reader
+        run: npm install
+
+      - name: Compile TypeScript and dependencies
+        working-directory: fluent-reader
+        run: npm run build
+
+      - name: Fix electron-builder.yml desktop entry
+        working-directory: fluent-reader
+        run: |
+          sed -i 's/desktop:\s*StartupWMClass:/desktop:\n    entry:\n      StartupWMClass:/' electron-builder.yml
+
+      - name: Build AppImage (unsigned)
+        working-directory: fluent-reader
+        run: npx electron-builder --linux AppImage --publish never
+
+      - name: List all AppImage files in workspace
+        run: find $GITHUB_WORKSPACE -name '*.AppImage' -print
+
+      - name: Sign AppImage externally with GPG
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          APPIMAGE=$(find . -name '*.AppImage' | head -n 1)
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --detach-sign --armor "$APPIMAGE"
+          gpg --batch --yes --delete-secret-keys
+
+      - name: Upload AppImage and signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluentReader-AppImage
+          path: |
+            **/*.AppImage
+            **/*.AppImage.asc
