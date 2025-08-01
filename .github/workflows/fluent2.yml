@@ -24,10 +24,16 @@ jobs:
         working-directory: fluent-reader
         run: npm run build
 
-      - name: Fix electron-builder.yml desktop entry
+      - name: Fix electron-builder.yml configuration
         working-directory: fluent-reader
-        run: |
-          sed -i 's/desktop:\s*StartupWMClass: fluent-reader/desktop: {}/' electron-builder.yml
+       run: |
+          ls -la electron-builder.yml || true
+          cat electron-builder.yml || true
+          
+          sed -i '/desktop:/,/StartupWMClass:/c\    desktop: {}' electron-builder.yml
+          
+          echo "=== Archivo modificado ==="
+          cat electron-builder.yml
 
       - name: Build AppImage (unsigned)
         working-directory: fluent-reader
