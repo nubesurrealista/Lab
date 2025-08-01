@@ -1,4 +1,4 @@
-name: Build fluent
+name: Build and Package Fluent Reader AppImage
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
       - name: Fix electron-builder.yml desktop entry
         working-directory: fluent-reader
         run: |
-          sed -i 's/desktop:\s*StartupWMClass:/desktop:\n    entry:\n      StartupWMClass:/' electron-builder.yml
+          sed -i 's/desktop:\s*StartupWMClass:/desktop:\n    entry:\n      StartupWMClass: fluent-reader/' electron-builder.yml
 
       - name: Build AppImage (unsigned)
         working-directory: fluent-reader
