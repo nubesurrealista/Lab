@@ -1,4 +1,4 @@
-name: Build and Package Fluent Reader AppImage
+name: Build fluent
 
 on:
   workflow_dispatch:
