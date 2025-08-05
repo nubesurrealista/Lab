@@ -37,8 +37,8 @@ jobs:
             mpv \
             llvm \
             llvm-dev \
-            libllvm16 \
-            libllvmspirvlib16-dev
+            libllvm14 \
+            libllvmspirvlib-14-dev
 
       - name: Clone Repository
         run: git clone https://github.com/poppingmoon/aria.git .
