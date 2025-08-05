@@ -34,34 +34,34 @@ jobs:
             DESTDIR=/workspace/Tuba.AppDir meson install -C build
             cd /workspace
 
-            # Copiar TODAS las bibliotecas compartidas necesarias, incluidas dependencias indirectas
+            # Copiar TODAS las bibliotecas compartidas necesarias de los paquetes instalados
             mkdir -p Tuba.AppDir/usr/lib
             BIN=/workspace/Tuba.AppDir/usr/local/bin/dev.geopjr.Tuba
-            # Función para copiar bibliotecas recursivamente
-            copy_deps() {
-              local lib=$1
-              if [[ ! -f "$lib" ]]; then
-                echo "No se encontró biblioteca: $lib"
-                return
-              fi
-              # Excluir bibliotecas críticas del sistema
-              case "$lib" in
-                /lib*|/usr/lib/libc.so.*|/usr/lib/libpthread.so.*|/usr/lib/ld-linux*|/usr/lib/libm.so.*|/usr/lib/libdl.so.*) ;;
-                *)
+            # Lista de paquetes runtime necesarios
+            pkgs="libgtk-4-0 libadwaita-1-0 libsoup-3.0-0 libsecret-1-0 libgtksourceview-5-0 libicu76 libjson-glib-1.0-0 libglib2.0-0 libxml2 libgee-0.8-2 librsvg2-2 libspelling-1-0"
+            for pkg in $pkgs; do
+              # Obtener archivos de biblioteca del paquete
+              dpkg -L $pkg | grep -E "\.so(\.[0-9]+)*$" | while read -r lib; do
+                if [[ -f "$lib" ]]; then
                   echo "Copiando biblioteca: $lib"
-                  cp -f "$lib" /workspace/Tuba.AppDir/usr/lib/ || { echo "Fallo al copiar $lib"; return; }
-                  # Obtener dependencias de la biblioteca copiada
-                  ldd "$lib" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r dep; do
-                    copy_deps "$dep"
-                  done
-                  ;;
-              esac
-            }
-            # Copiar bibliotecas directas del binario
-            echo "Analizando dependencias de $BIN"
-            ldd "$BIN" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r lib; do
-              copy_deps "$lib"
+                  cp -f "$lib" /workspace/Tuba.AppDir/usr/lib/ || { echo "Fallo al copiar $lib"; exit 1; }
+                fi
+              done
             done
+            # Copiar dependencias indirectas de /usr/lib/x86_64-linux-gnu
+            for lib in /usr/lib/x86_64-linux-gnu/*.so*; do
+              if [[ -f "$lib" ]]; then
+                case "$lib" in
+                  */libc.so.*|*/libpthread.so.*|*/ld-linux*|*/libm.so.*|*/libdl.so.*) ;;
+                  *)
+                    echo "Copiando biblioteca indirecta: $lib"
+                    cp -f "$lib" /workspace/Tuba.AppDir/usr/lib/ || { echo "Fallo al copiar $lib"; exit 1; }
+                    ;;
+                esac
+              fi
+            done
+            # Ajustar RPATH del binario para usar bibliotecas relativas
+            patchelf --set-rpath "\$ORIGIN/../lib" "$BIN" || { echo "Fallo al ajustar RPATH"; exit 1; }
             # Listar bibliotecas copiadas para depuración
             echo "Bibliotecas copiadas a Tuba.AppDir/usr/lib:"
             ls -l /workspace/Tuba.AppDir/usr/lib/
