@@ -1,10 +1,6 @@
 name: Build Aria for Linux
 
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build-linux:
@@ -52,8 +48,8 @@ jobs:
       - name: Enable Linux Desktop
         run: flutter config --enable-linux-desktop
 
-      - name: Run Code Generator
-        run: dart run build_runner build
+      - name: Run Code Generator (with conflict resolution)
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Release (Software Rendering)
         run: |
@@ -71,18 +67,11 @@ jobs:
 
       - name: Compress Bundle
         run: |
-          tar -zcvf "aria-linux-x86_64-release.tar.gz" \
+          tar -zcvf "aria-linux-bundle.tar.gz" \
           --directory=build/linux/x64/release/bundle .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aria-linux-build
-          path: "aria-linux-x86_64-release.tar.gz"
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: aria-linux-x86_64-release.tar.gz
+          name: aria-linux-binaries
+          path: "aria-linux-bundle.tar.gz"
