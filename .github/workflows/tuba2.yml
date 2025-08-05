@@ -16,11 +16,11 @@ jobs:
       - name: Build and package tarball in Debian Docker
         run: |
           set -euxo pipefail
-          docker run --rm -v "$PWD:/workspace" -w /workspace debian:latest bash -c '
+          docker run --rm -v "$PWD:/workspace" -w /workspace debian:bookworm bash -c '
             # Actualizar lista de paquetes e instalar dependencias
             apt update
             apt install -y build-essential git meson ninja-build valac \
-              libgtk-4-dev libadwaita-1-dev libsoup3-0-dev libsecret-1-dev \
+              libgtk-4-dev libadwaita-1-dev libsoup-3.0-dev libsecret-1-dev \
               libgtksourceview-5-dev libicu-dev libjson-glib-dev \
               libglib2.0-dev libxml2-dev gobject-introspection patchelf \
               hicolor-icon-theme desktop-file-utils libgee-0.8-dev librsvg2-dev
@@ -36,7 +36,7 @@ jobs:
             # Copiar solo las bibliotecas compartidas necesarias, excluyendo glibc y similares
             mkdir -p Tuba.AppDir/usr/lib
             BIN=/workspace/Tuba.AppDir/usr/local/bin/dev.geopjr.Tuba
-            ldd "$BIN" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r lib; do
+            ldd "$BIN" | awk '\''{if ($3 ~ /^\//) print $3}'\'' | while read -r lib; do
               # Excluir bibliotecas críticas del sistema (glibc, etc.)
               case "$lib" in
                 /lib*|/usr/lib/libc.so.*|/usr/lib/libpthread.so.*|/usr/lib/ld-linux*|/usr/lib/libm.so.*|/usr/lib/libdl.so.*) ;;
