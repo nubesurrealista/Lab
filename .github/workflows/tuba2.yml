@@ -1,4 +1,3 @@
-```yaml
 name: Build Tuba Tarball Portable (Debian)
 
 on:
@@ -55,4 +54,3 @@ jobs:
         with:
           name: tuba-tarball
           path: tuba-portable.tar.gz
-```
