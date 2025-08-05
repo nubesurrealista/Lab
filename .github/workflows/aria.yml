@@ -1,6 +1,6 @@
 name: Build Aria for Linux
 
-on: workflow_dispatch
+on: workflow_dispatch:
 
 jobs:
   build-linux:
@@ -23,13 +23,20 @@ jobs:
             gcc \
             g++ \
             libgtk-3-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            mesa-utils \
+            mesa-common-dev \
+            libgles2-mesa-dev \
+            libegl1-mesa-dev \
             libblkid-dev \
             liblzma-dev \
             libsecret-1-dev \
             libjsoncpp-dev \
             libmpv-dev \
             mpv \
-            mesa-utils
+            llvm \
+            libllvm-dev
 
       - name: Clone Repository
         run: git clone https://github.com/poppingmoon/aria.git .
@@ -48,13 +55,15 @@ jobs:
       - name: Enable Linux Desktop
         run: flutter config --enable-linux-desktop
 
-      - name: Run Code Generator (with conflict resolution)
+      - name: Run Code Generator
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Release (Software Rendering)
         run: |
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
+          export EGL_PLATFORM=surfaceless
+          export MESA_GL_VERSION_OVERRIDE=3.3
           flutter build linux --release
 
       - name: Create launcher script
@@ -62,6 +71,8 @@ jobs:
           echo '#!/bin/sh
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
+          export EGL_PLATFORM=surfaceless
+          export MESA_GL_VERSION_OVERRIDE=3.3
           ./aria "$@"' > build/linux/x64/release/bundle/launch_software.sh
           chmod +x build/linux/x64/release/bundle/launch_software.sh
 
