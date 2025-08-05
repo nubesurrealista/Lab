@@ -1,0 +1,58 @@
+```yaml
+name: Build Tuba Tarball Portable (Debian)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Build and package tarball in Debian Docker
+        run: |
+          set -euxo pipefail
+          docker run --rm -v "$PWD:/workspace" -w /workspace debian:bookworm bash -c '
+            # Actualizar lista de paquetes e instalar dependencias
+            apt update
+            apt install -y build-essential git meson ninja-build valac \
+              libgtk-4-dev libadwaita-1-dev libsoup3.0-dev libsecret-1-dev \
+              libgtksourceview-5-dev libicu-dev libjson-glib-dev \
+              libglib2.0-dev libxml2-dev gobject-introspection patchelf \
+              hicolor-icon-theme desktop-file-utils libgee-0.8-dev librsvg2-dev
+
+            # Clonar y compilar Tuba
+            git clone --depth=1 https://github.com/GeopJr/Tuba.git tuba-src
+            cd tuba-src
+            meson setup build
+            meson compile -C build
+            DESTDIR=/workspace/Tuba.AppDir meson install -C build
+            cd /workspace
+
+            # Copiar solo las bibliotecas compartidas necesarias, excluyendo glibc y similares
+            mkdir -p Tuba.AppDir/usr/lib
+            BIN=/workspace/Tuba.AppDir/usr/local/bin/dev.geopjr.Tuba
+            ldd "$BIN" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r lib; do
+              # Excluir bibliotecas críticas del sistema (glibc, etc.)
+              case "$lib" in
+                /lib*|/usr/lib/libc.so.*|/usr/lib/libpthread.so.*|/usr/lib/ld-linux*|/usr/lib/libm.so.*|/usr/lib/libdl.so.*) ;;
+                *) cp -n "$lib" /workspace/Tuba.AppDir/usr/lib/ || true ;;
+              esac
+            done
+
+            cd Tuba.AppDir
+            tar czf ../tuba-portable.tar.gz .
+            cd ..
+          '
+
+      - name: Upload tarball as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuba-tarball
+          path: tuba-portable.tar.gz
+```
