@@ -16,7 +16,7 @@ jobs:
       - name: Build and package tarball in Debian Docker
         run: |
           set -euxo pipefail
-          docker run --rm -v "$PWD:/workspace" -w /workspace debian:bookworm bash -c '
+          docker run --rm -v "$PWD:/workspace" -w /workspace debian:latest bash -c '
             # Actualizar lista de paquetes e instalar dependencias
             apt update
             apt install -y build-essential git meson ninja-build valac \
