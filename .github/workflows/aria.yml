@@ -36,7 +36,9 @@ jobs:
             libmpv-dev \
             mpv \
             llvm \
-            libllvm-dev
+            llvm-dev \
+            libllvm16 \
+            libllvmspirvlib16-dev
 
       - name: Clone Repository
         run: git clone https://github.com/poppingmoon/aria.git .
@@ -62,8 +64,6 @@ jobs:
         run: |
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
-          export EGL_PLATFORM=surfaceless
-          export MESA_GL_VERSION_OVERRIDE=3.3
           flutter build linux --release
 
       - name: Create launcher script
@@ -71,8 +71,6 @@ jobs:
           echo '#!/bin/sh
           export LIBGL_ALWAYS_SOFTWARE=1
           export GALLIUM_DRIVER=llvmpipe
-          export EGL_PLATFORM=surfaceless
-          export MESA_GL_VERSION_OVERRIDE=3.3
           ./aria "$@"' > build/linux/x64/release/bundle/launch_software.sh
           chmod +x build/linux/x64/release/bundle/launch_software.sh
 
