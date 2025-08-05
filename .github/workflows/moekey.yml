@@ -49,8 +49,8 @@ jobs:
       - name: Run Code Generator
         run: dart run build_runner build
 
-      - name: Build Release
-        run: flutter build linux --release
+      - name: Build Release (Software Rendering)
+        run: flutter build linux --release --enable-software-rendering
 
       - name: Compress Bundle
         run: |
