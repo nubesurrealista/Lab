@@ -19,11 +19,12 @@ jobs:
           docker run --rm -v "$PWD:/workspace" -w /workspace debian:trixie bash -c '
             # Actualizar lista de paquetes e instalar dependencias
             apt update
-            apt install -y build-essential git meson ninja-build valac \
-              libgtk-4-dev gettext libspelling-1-dev libadwaita-1-dev libsoup-3.0-dev libsecret-1-dev \
+            apt install -y build-essential git meson ninja-build valac gettext \
+              libgtk-4-dev libadwaita-1-dev libsoup-3.0-dev libsecret-1-dev \
               libgtksourceview-5-dev libicu-dev libjson-glib-dev \
               libglib2.0-dev libxml2-dev gobject-introspection patchelf \
-              hicolor-icon-theme desktop-file-utils libgee-0.8-dev librsvg2-dev
+              hicolor-icon-theme desktop-file-utils libgee-0.8-dev librsvg2-dev \
+              libspelling-1-dev
 
             # Clonar y compilar Tuba
             git clone --depth=1 https://github.com/GeopJr/Tuba.git tuba-src
@@ -33,15 +34,30 @@ jobs:
             DESTDIR=/workspace/Tuba.AppDir meson install -C build
             cd /workspace
 
-            # Copiar solo las bibliotecas compartidas necesarias, excluyendo glibc y similares
+            # Copiar bibliotecas compartidas necesarias, excluyendo glibc y similares
             mkdir -p Tuba.AppDir/usr/lib
             BIN=/workspace/Tuba.AppDir/usr/local/bin/dev.geopjr.Tuba
-            ldd "$BIN" | awk '\''{if ($3 ~ /^\//) print $3}'\'' | while read -r lib; do
-              # Excluir bibliotecas críticas del sistema (glibc, etc.)
+            # Función para copiar bibliotecas y sus dependencias recursivamente
+            copy_deps() {
+              local lib=$1
+              if [[ ! -f "$lib" ]]; then
+                return
+              fi
+              # Excluir bibliotecas críticas del sistema
               case "$lib" in
                 /lib*|/usr/lib/libc.so.*|/usr/lib/libpthread.so.*|/usr/lib/ld-linux*|/usr/lib/libm.so.*|/usr/lib/libdl.so.*) ;;
-                *) cp -n "$lib" /workspace/Tuba.AppDir/usr/lib/ || true ;;
+                *)
+                  cp -n "$lib" /workspace/Tuba.AppDir/usr/lib/ || true
+                  # Obtener dependencias de la biblioteca copiada
+                  ldd "$lib" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r dep; do
+                    copy_deps "$dep"
+                  done
+                  ;;
               esac
+            }
+            # Copiar bibliotecas directas del binario
+            ldd "$BIN" | awk '"'"'{if ($3 ~ /^\//) print $3}'"'"' | while read -r lib; do
+              copy_deps "$lib"
             done
 
             cd Tuba.AppDir
