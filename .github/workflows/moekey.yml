@@ -9,14 +9,15 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:latest
     steps:
+      - name: Install Git
+        run: apt-get update && apt-get install -y git
+
       - name: Clone Repository
         run: git clone https://github.com/MoeKeyDev/MoeKey.git .
 
       - name: Install System Dependencies
         run: |
-          apt-get update
           apt-get install -y --no-install-recommends \
-            git \
             curl \
             unzip \
             ninja-build \
