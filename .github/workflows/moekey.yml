@@ -9,24 +9,28 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:latest
     steps:
-      - name: Install Git
-        run: apt-get update && apt-get install -y git
+      - name: Install Basic Dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            git \
+            curl \
+            unzip \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            clang \
+            gcc \
+            g++ \
+            libgtk-3-dev \
+            libblkid-dev \
+            liblzma-dev \
+            libmpv-dev \
+            mpv
 
       - name: Clone Repository
         run: git clone https://github.com/MoeKeyDev/MoeKey.git .
-
-      - name: Install System Dependencies
-        run: |
-          apt-get install -y --no-install-recommends \
-            curl \
-            unzip \
-            ninja-build \
-            libgtk-3-dev \
-            libmpv-dev \
-            mpv \
-            clang \
-            cmake \
-            pkg-config
 
       - name: Install Flutter
         run: |
