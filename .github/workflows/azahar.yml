@@ -1,60 +1,63 @@
-name: Build Azahar
-
+name: Build Azahar AppImage
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:bookworm
-
     steps:
       - name: Update package lists
         run: apt-get update && apt-get upgrade -y
-
-      - name: Install prerequisites for LLVM repository
-        run: apt-get install -y wget gnupg
-
-      - name: Add LLVM repository key
-        run: |
-          mkdir -p /etc/apt/keyrings
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | tee /etc/apt/keyrings/apt.llvm.org.gpg > /dev/null
-
-      - name: Add LLVM repository sources
-        run: |
-          echo "Types: deb" > /etc/apt/sources.list.d/apt.llvm.org.sources
-          echo "URIs: https://apt.llvm.org/bookworm/" >> /etc/apt/sources.list.d/apt.llvm.org.sources
-          echo "Suites: llvm-toolchain-bookworm-18" >> /etc/apt/sources.list.d/apt.llvm.org.sources
-          echo "Components: main" >> /etc/apt/sources.list.d/apt.llvm.org.sources
-          echo "Signed-By: /etc/apt/keyrings/apt.llvm.org.gpg" >> /etc/apt/sources.list.d/apt.llvm.org.sources
-
-      - name: Update package lists after adding LLVM repo
-        run: apt-get update
-
-      - name: Install Clang 18 and related packages
-        run: apt-get install -y clang-18 clang-format-18 libc++-18-dev libc++abi-18-dev llvm-18-dev
-
       - name: Install build dependencies
-        run: |
-          apt-get install -y git build-essential cmake jackd libasound-dev libgl-dev libpipewire-0.3-dev libsndio-dev \
-          libssl-dev libsdl2-dev libx11-dev libxext-dev qt6-base-dev qt6-base-private-dev qt6-l10n-tools qt6-multimedia-dev \
-          qt6-tools-dev qt6-tools-dev-tools xorg-dev
+        run: >
+          apt-get install -y \
+            git build-essential cmake jackd libasound-dev libgl-dev libpipewire-0.3-dev \
+            libsdl2-dev libx11-dev libxext-dev qt6-base-dev qt6-base-private-dev \
+            qt6-l10n-tools qt6-multimedia-dev qt6-tools-dev qt6-tools-dev-tools xorg-dev
+      - name: Install AppImage tools
+        run: >
+          wget
+          https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
 
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+
+          chmod +x linuxdeploy-x86_64.AppImage appimagetool-x86_64.AppImage
       - name: Clone repository
         run: git clone --recursive https://github.com/azahar-emu/azahar
-
       - name: Build Azahar
         working-directory: azahar
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_CXX_COMPILER=clang++-18 \
-                   -DCMAKE_C_COMPILER=clang-18 \
-                   -DCMAKE_CXX_FLAGS="-O2 -g -stdlib=libc++"
+          cmake .. -DCMAKE_CXX_FLAGS="-O2 -g"
           cmake --build . -- -j"$(nproc)"
+      - name: Strip binary
+        working-directory: azahar/build
+        run: strip bin/azahar-qt
+      - name: Create AppImage
+        working-directory: azahar/build
+        run: >
+          mkdir -p AppDir/usr/bin
 
-      - name: Upload binary artifact
+          mkdir -p AppDir/usr/lib
+
+          cp bin/azahar-qt AppDir/usr/bin/
+
+          mkdir -p AppDir/usr/share/applications
+
+          echo "[Desktop Entry]\nName=Azahar\nExec=azahar-qt\nType=Application\nIcon=azahar\nCategories=Emulator;" > AppDir/usr/share/applications/azahar.desktop
+
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+
+          touch AppDir/usr/share/icons/hicolor/256x256/apps/azahar.png
+
+          ../../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+
+          mkdir -p ../../artifacts
+
+          mv *.AppImage ../../artifacts/Azahar.AppImage
+      - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: azahar-binary
-          path: azahar/build/bin/azahar-qt
+          name: azahar-appimage
+          path: azahar/artifacts/Azahar.AppImage
