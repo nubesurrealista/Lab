@@ -1,0 +1,60 @@
+name: Build Azahar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+
+    steps:
+      - name: Update package lists
+        run: apt-get update && apt-get upgrade -y
+
+      - name: Install prerequisites for LLVM repository
+        run: apt-get install -y wget gnupg
+
+      - name: Add LLVM repository key
+        run: |
+          mkdir -p /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | tee /etc/apt/keyrings/apt.llvm.org.gpg > /dev/null
+
+      - name: Add LLVM repository sources
+        run: |
+          echo "Types: deb" > /etc/apt/sources.list.d/apt.llvm.org.sources
+          echo "URIs: https://apt.llvm.org/bookworm/" >> /etc/apt/sources.list.d/apt.llvm.org.sources
+          echo "Suites: llvm-toolchain-bookworm-18" >> /etc/apt/sources.list.d/apt.llvm.org.sources
+          echo "Components: main" >> /etc/apt/sources.list.d/apt.llvm.org.sources
+          echo "Signed-By: /etc/apt/keyrings/apt.llvm.org.gpg" >> /etc/apt/sources.list.d/apt.llvm.org.sources
+
+      - name: Update package lists after adding LLVM repo
+        run: apt-get update
+
+      - name: Install Clang 18 and related packages
+        run: apt-get install -y clang-18 clang-format-18 libc++-18-dev libc++abi-18-dev llvm-18-dev
+
+      - name: Install build dependencies
+        run: |
+          apt-get install -y git build-essential cmake jackd libasound-dev libgl-dev libpipewire-0.3-dev libsndio-dev \
+          libssl-dev libsdl2-dev libx11-dev libxext-dev qt6-base-dev qt6-base-private-dev qt6-l10n-tools qt6-multimedia-dev \
+          qt6-tools-dev qt6-tools-dev-tools xorg-dev
+
+      - name: Clone repository
+        run: git clone --recursive https://github.com/azahar-emu/azahar
+
+      - name: Build Azahar
+        working-directory: azahar
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_CXX_COMPILER=clang++-18 \
+                   -DCMAKE_C_COMPILER=clang-18 \
+                   -DCMAKE_CXX_FLAGS="-O2 -g -stdlib=libc++"
+          cmake --build . -- -j"$(nproc)"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azahar-binary
+          path: azahar/build/bin/azahar-qt
