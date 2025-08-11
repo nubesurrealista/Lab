@@ -1,3 +1,4 @@
+---
 name: Build Azahar AppImage
 on:
   workflow_dispatch: null
@@ -13,7 +14,8 @@ jobs:
           apt-get install -y \
             git build-essential cmake jackd libasound-dev libgl-dev libpipewire-0.3-dev \
             libsdl2-dev libx11-dev libxext-dev qt6-base-dev qt6-base-private-dev \
-            qt6-l10n-tools qt6-multimedia-dev qt6-tools-dev qt6-tools-dev-tools xorg-dev
+            qt6-l10n-tools qt6-multimedia-dev qt6-tools-dev qt6-tools-dev-tools xorg-dev \
+            wget
       - name: Install AppImage tools
         run: >
           wget
