@@ -28,10 +28,10 @@ jobs:
           chmod +x ffmpeg-android-maker.sh
           ./ffmpeg-android-maker.sh -all-free -all-gpl -android=24 -abis=armeabi-v7a
 
-      - name: Upload full FFmpeg runtime
+      - name: Upload full FFmpeg armv7 runtime
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-armv7-runtime
           path: |
-            ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/bin/ffmpeg
-            ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/lib/*.so
+            ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/**
+            
