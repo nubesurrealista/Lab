@@ -11,31 +11,31 @@ jobs:
       - name: Clone ffmpeg-android-maker
         run: |
           git clone https://github.com/Javernaut/ffmpeg-android-maker.git
-          cd ffmpeg-android-maker
-          echo "REPO_CLONED=true" >> $GITHUB_ENV
 
       - name: Install dependencies
-        if: env.REPO_CLONED == 'true'
         run: |
           sudo apt update
           sudo apt install -y meson nasm ninja-build curl unzip
 
       - name: Set Android environment variables
-        if: env.REPO_CLONED == 'true'
         run: |
           echo "ANDROID_SDK_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
 
       - name: Run ffmpeg-android-maker for armv7
-        if: env.REPO_CLONED == 'true'
         working-directory: ./ffmpeg-android-maker
         run: |
           chmod +x ffmpeg-android-maker.sh
           ./ffmpeg-android-maker.sh -all-free -all-gpl -android=24 -abis=armeabi-v7a
 
-      - name: Upload ffmpeg binary as artifact
+      - name: List build output directories
+        run: |
+          echo "📂 Listing build output for armeabi-v7a:"
+          find ffmpeg-android-maker/build/armeabi-v7a -type f -exec ls -lh {} \;
+
+      - name: Upload ffmpeg binary
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-armv7
           path: |
-            ffmpeg-android-maker/build/armeabi-v7a/ffmpeg
+            ffmpeg-android-maker/build/armeabi-v7a/output/bin/ffmpeg
