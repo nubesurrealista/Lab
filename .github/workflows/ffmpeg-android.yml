@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y meson nasm ninja-build curl unzip
+          sudo apt install -y meson nasm ninja-build curl unzip tree
 
       - name: Set Android environment variables
         run: |
@@ -28,10 +28,12 @@ jobs:
           chmod +x ffmpeg-android-maker.sh
           ./ffmpeg-android-maker.sh -all-free -all-gpl -android=24 -abis=armeabi-v7a
 
-      - name: List build output directories
+      - name: Debug: list all build directories and files
         run: |
-          echo "📂 Listing build output for armeabi-v7a:"
-          find ffmpeg-android-maker/build/armeabi-v7a -type f -exec ls -lh {} \;
+          echo "📂 Full directory tree under ffmpeg-android-maker/build:"
+          tree ffmpeg-android-maker/build || echo "⚠️ No build directory found"
+          echo "📁 Listing all files with full paths:"
+          find ffmpeg-android-maker/build -type f -exec ls -lh {} \;
 
       - name: Upload ffmpeg binary
         uses: actions/upload-artifact@v4
