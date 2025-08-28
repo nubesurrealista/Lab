@@ -1,4 +1,4 @@
-name: FFmpeg Android armv7 Minimal Build
+name: FFmpeg Android armv7 Runtime Build
 
 on:
   workflow_dispatch:
@@ -28,10 +28,10 @@ jobs:
           chmod +x ffmpeg-android-maker.sh
           ./ffmpeg-android-maker.sh -all-free -all-gpl -android=24 -abis=armeabi-v7a
 
-      - name: Upload ffmpeg binary and required .so libraries
+      - name: Upload full FFmpeg runtime
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-armv7-runtime
           path: |
             ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/bin/ffmpeg
-            ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/lib/libc++_shared.so
+            ffmpeg-android-maker/build/ffmpeg/armeabi-v7a/lib/*.so
