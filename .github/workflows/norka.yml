@@ -10,6 +10,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify meson.build exists
+        run: |
+          if [ ! -f "meson.build" ]; then
+            echo "ERROR: meson.build file not found in root directory"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
+          fi
+          echo "meson.build found successfully"
 
       - name: Install build dependencies
         run: |
@@ -24,6 +36,16 @@ jobs:
 
       - name: Build project
         run: ninja -C build
+
+      - name: Verify binary exists
+        run: |
+          if [ ! -f "build/src/norka" ]; then
+            echo "ERROR: Binary not found at build/src/norka"
+            echo "Build directory contents:"
+            find build/ -type f -name "*norka*" || echo "No norka files found"
+            exit 1
+          fi
+          echo "Binary found at build/src/norka"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
