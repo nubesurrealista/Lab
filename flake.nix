@@ -1,0 +1,21 @@
+{
+  description = "Nix environment for building SRB2 AppImage";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
+
+  outputs = { self, nixpkgs }: {
+    devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
+      buildInputs = with nixpkgs.legacyPackages.x86_64-linux; [
+        make git debianutils coreutils findutils file
+        ncurses curl gawk stow
+        libfuse zlib patchelf gdk-pixbuf
+        flatpak flatpak-builder
+      ];
+
+      shellHook = ''
+        export TERM=xterm
+        echo "SRB2 build environment ready via Nix 🦔"
+      '';
+    };
+  };
+}
