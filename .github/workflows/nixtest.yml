@@ -1,4 +1,4 @@
-name: Build SRB2 AppImage
+name: Build SRB2 on NIX
 
 on:
   workflow_dispatch:
