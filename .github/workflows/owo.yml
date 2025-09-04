@@ -16,25 +16,13 @@ jobs:
   enviar_a_telegram:
     runs-on: ubuntu-latest
 
-    services:
-      telegram-bot-api:
-        image: aiogram/telegram-bot-api:latest
-        ports:
-          - 8081:8081
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          TELEGRAM_LOCAL: "1"
-        options: >-
-          --health-cmd "curl --fail http://localhost:8081 || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
+    - name: 🐳 Instalar Docker CLI
+      run: sudo apt-get update && sudo apt-get install -y docker.io
+
     - name: 📥 Descargar archivo con aria2
       run: |
-        sudo apt-get update && sudo apt-get install -y aria2
+        sudo apt-get install -y aria2
         aria2c "${{ inputs.download_url }}" \
           -o "${{ inputs.filename }}" \
           --max-connection-per-server=4 \
@@ -42,8 +30,18 @@ jobs:
           --enable-rpc=false
         ls -lh "${{ inputs.filename }}"
 
-    - name: 🕒 Esperar a que el servidor esté listo
-      run: sleep 15
+    - name: 🚀 Iniciar servidor Telegram Bot API en segundo plano
+      env:
+        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+      run: |
+        docker run -d --name telegram-bot-api \
+          -p 8081:8081 \
+          -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
+          -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
+          -e TELEGRAM_LOCAL=1 \
+          aiogram/telegram-bot-api:latest
+        sleep 15
 
     - name: 📤 Enviar archivo a Telegram
       env:
@@ -54,3 +52,8 @@ jobs:
           -F chat_id=${TELEGRAM_CHAT_ID} \
           -F caption="📦 Archivo completo: '${{ inputs.filename }}'" \
           -F document=@"${{ inputs.filename }}"
+
+    - name: 🧹 Detener y limpiar contenedor
+      run: |
+        docker stop telegram-bot-api
+        docker rm telegram-bot-api
