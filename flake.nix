@@ -16,7 +16,7 @@
         curl
         gawk
         stow
-        libfuse
+        fuse
         zlib
         patchelf
         gdk-pixbuf
