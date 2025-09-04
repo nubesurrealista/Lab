@@ -26,6 +26,7 @@
 
       shellHook = ''
         export TERM=xterm
+        mkdir -p ~/.local/share
       '';
     };
   };
