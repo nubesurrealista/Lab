@@ -21,6 +21,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: 🛠️ Instalar dependencias necesarias
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl docker.io
+
     - name: 🔍 Buscar artefacto
       id: buscar
       run: |
@@ -43,38 +48,33 @@ jobs:
         curl -L -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
           "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
           -o full_artifact.zip
+        ls -lh full_artifact.zip
 
-    - name: 📏 Verificar tamaño del artefacto
-      id: verificar
+    - name: 🚀 Iniciar servidor Telegram Bot API en segundo plano
+      env:
+        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
       run: |
-        FILESIZE=$(stat -c%s full_artifact.zip)
-        echo "size=$FILESIZE" >> $GITHUB_OUTPUT
+        docker run -d --name telegram-bot-api \
+          -p 8081:8081 \
+          -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
+          -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
+          -e TELEGRAM_LOCAL=1 \
+          aiogram/telegram-bot-api:latest
+        echo "Esperando que el servidor esté listo..."
+        sleep 15
 
-    - name: 📤 Enviar directamente si < 50MB
-      if: ${{ steps.verificar.outputs.size < 52428800 }}
+    - name: 📤 Enviar artefacto completo a Telegram
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F caption="✅ Artefacto completo: '${{ inputs.artifact_name }}'" \
+        curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+          -F chat_id=${TELEGRAM_CHAT_ID} \
+          -F caption="📦 Artefacto completo: '${{ inputs.artifact_name }}'" \
           -F document=@full_artifact.zip
 
-    - name: ✂️ Dividir archivo si excede 50MB
-      if: ${{ steps.verificar.outputs.size >= 52428800 }}
+    - name: 🧹 Detener y eliminar contenedor
       run: |
-        split -b 49M full_artifact.zip fragment_
-        echo "Fragmentos generados:"
-        ls -lh fragment_*
-
-    - name: 🚀 Enviar fragmentos a Telegram
-      if: ${{ steps.verificar.outputs.size >= 52428800 }}
-      run: |
-        i=1
-        for archivo in fragment_*; do
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-            -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -F caption="🧩 Fragmento $i de '${{ inputs.artifact_name }}'" \
-            -F document=@"$archivo"
-          echo "✅ Enviado fragmento $i → $archivo"
-          sleep 5
-          ((i++))
-        done
+        docker stop telegram-bot-api
+        docker rm telegram-bot-api
