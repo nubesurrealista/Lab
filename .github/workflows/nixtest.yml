@@ -1,4 +1,4 @@
-name: Build SRB2 on Nix
+name: Build SRB2 on NIX
 
 on:
   workflow_dispatch:
@@ -6,11 +6,13 @@ on:
 jobs:
   build-srb2:
     runs-on: ubuntu-latest
-    container:
-      image: nixos/nix:latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - run: |
+          curl -L https://nixos.org/nix/install | bash
+          . ~/.nix-profile/etc/profile.d/nix.sh
 
       - run: |
           nix develop .#default --command bash -c "
