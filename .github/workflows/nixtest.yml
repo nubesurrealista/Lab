@@ -1,4 +1,4 @@
-name: Build SRB2 on NIX
+name: Build SRB2 AppImage
 
 on:
   workflow_dispatch:
@@ -10,11 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: |
+      - name: Install Nix
+        run: |
           curl -L https://nixos.org/nix/install | bash
-          . ~/.nix-profile/etc/profile.d/nix.sh
+          echo ". ~/.nix-profile/etc/profile.d/nix.sh" >> $GITHUB_ENV
 
-      - run: |
+      - name: Build SRB2 AppImage
+        run: |
+          . ~/.nix-profile/etc/profile.d/nix.sh
           nix develop .#default --command bash -c "
             git clone https://github.com/Bijman/srb2bld.git &&
             cd srb2bld &&
@@ -25,6 +28,7 @@ jobs:
 
       - id: find-appimage
         run: |
+          . ~/.nix-profile/etc/profile.d/nix.sh
           APPIMAGE_PATH=$(find $HOME -name '*.AppImage' | head -n1)
           echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
 
