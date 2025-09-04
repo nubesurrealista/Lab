@@ -6,10 +6,10 @@ on:
 jobs:
   build-srb2:
     container:
-      image: nixos/nix:latest  # Imagen pública con Nix preinstalado
+      image: nixos/nix:latest
 
     steps:
-      - name: Checkout repo (donde está tu flake.nix)
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Enter Nix shell and build SRB2
