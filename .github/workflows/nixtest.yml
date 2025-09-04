@@ -13,11 +13,11 @@ jobs:
       - name: Install Nix
         run: |
           curl -L https://nixos.org/nix/install | bash
-          echo ". ~/.nix-profile/etc/profile.d/nix.sh" >> $GITHUB_ENV
+          source ~/.nix-profile/etc/profile.d/nix.sh
 
       - name: Build SRB2 AppImage
         run: |
-          . ~/.nix-profile/etc/profile.d/nix.sh
+          source ~/.nix-profile/etc/profile.d/nix.sh
           nix develop .#default --command bash -c "
             git clone https://github.com/Bijman/srb2bld.git &&
             cd srb2bld &&
@@ -26,9 +26,10 @@ jobs:
             printf '1\n\n\n\n' | srb2bld --appimage
           "
 
-      - id: find-appimage
+      - name: Find AppImage
+        id: find-appimage
         run: |
-          . ~/.nix-profile/etc/profile.d/nix.sh
+          source ~/.nix-profile/etc/profile.d/nix.sh
           APPIMAGE_PATH=$(find $HOME -name '*.AppImage' | head -n1)
           echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
 
