@@ -16,6 +16,17 @@ jobs:
   enviar_a_telegram:
     runs-on: ubuntu-latest
 
+    services:
+      telegram-bot-api:
+        image: telegrammessenger/telegram-bot-api
+        ports:
+          - 8081:8081
+        options: >-
+          --health-cmd "curl --fail http://localhost:8081 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
     steps:
     - name: 📥 Descargar con aria2
       run: |
@@ -34,31 +45,9 @@ jobs:
         echo "size=$SIZE" >> $GITHUB_OUTPUT
         echo "📦 Tamaño del archivo: $SIZE bytes"
 
-    - name: 🚀 Enviar directamente si < 50MB
-      if: ${{ steps.sizecheck.outputs.size < 52428800 }}
+    - name: 🚀 Enviar archivo completo usando Bot API autohospedada
       run: |
-        curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
+        curl -s -X POST "http://localhost:8081/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
           -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-          -F caption="✅ Archivo completo: ${{ inputs.filename }}" \
+          -F caption="📦 Archivo completo: '${{ inputs.filename }}'" \
           -F document=@"${{ inputs.filename }}"
-
-    - name: ✂️ Dividir si excede 50MB
-      if: ${{ steps.sizecheck.outputs.size >= 52428800 }}
-      run: |
-        split -b 49M "${{ inputs.filename }}" fragment_
-        echo "🧩 Fragmentos creados:"
-        ls -lh fragment_*
-
-    - name: 🚀 Enviar fragmentos
-      if: ${{ steps.sizecheck.outputs.size >= 52428800 }}
-      run: |
-        i=1
-        for f in fragment_*; do
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-            -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -F caption="🧩 Fragmento $i de '${{ inputs.filename }}'" \
-            -F document=@"$f"
-          echo "✅ Enviado fragmento $i → $f"
-          sleep 5
-          ((i++))
-        done
