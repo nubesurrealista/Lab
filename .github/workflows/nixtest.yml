@@ -10,14 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        run: |
+      - run: |
           curl -L https://nixos.org/nix/install | bash
-          source ~/.nix-profile/etc/profile.d/nix.sh
+          . ~/.nix-profile/etc/profile.d/nix.sh
+          export NIX_CONFIG="experimental-features = nix-command flakes"
 
-      - name: Build SRB2 AppImage
-        run: |
-          source ~/.nix-profile/etc/profile.d/nix.sh
+      - run: |
+          . ~/.nix-profile/etc/profile.d/nix.sh
+          export NIX_CONFIG="experimental-features = nix-command flakes"
           nix develop .#default --command bash -c "
             git clone https://github.com/Bijman/srb2bld.git &&
             cd srb2bld &&
@@ -26,10 +26,10 @@ jobs:
             printf '1\n\n\n\n' | srb2bld --appimage
           "
 
-      - name: Find AppImage
-        id: find-appimage
+      - id: find-appimage
         run: |
-          source ~/.nix-profile/etc/profile.d/nix.sh
+          . ~/.nix-profile/etc/profile.d/nix.sh
+          export NIX_CONFIG="experimental-features = nix-command flakes"
           APPIMAGE_PATH=$(find $HOME -name '*.AppImage' | head -n1)
           echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
 
