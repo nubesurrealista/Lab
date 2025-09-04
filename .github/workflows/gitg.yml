@@ -21,10 +21,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🛠️ Instalar dependencias necesarias
+    - name: 🛠 Instalar jq y verificar Docker
       run: |
         sudo apt-get update
-        sudo apt-get install -y jq curl docker.io
+        sudo apt-get install -y jq
+        docker --version || (echo "Docker no está disponible" && exit 1)
 
     - name: 🔍 Buscar artefacto
       id: buscar
@@ -64,7 +65,7 @@ jobs:
         echo "Esperando que el servidor esté listo..."
         sleep 15
 
-    - name: 📤 Enviar artefacto completo a Telegram
+    - name: 📤 Enviar artefacto a Telegram
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
