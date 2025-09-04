@@ -1,19 +1,18 @@
-name: Build SRB2 on NIX
+name: Build SRB2 on Nix
 
 on:
   workflow_dispatch:
 
 jobs:
   build-srb2:
+    runs-on: ubuntu-latest
     container:
       image: nixos/nix:latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Enter Nix shell and build SRB2
-        run: |
+      - run: |
           nix develop .#default --command bash -c "
             git clone https://github.com/Bijman/srb2bld.git &&
             cd srb2bld &&
@@ -22,15 +21,12 @@ jobs:
             printf '1\n\n\n\n' | srb2bld --appimage
           "
 
-      - name: Find generated AppImage
-        id: find-appimage
+      - id: find-appimage
         run: |
           APPIMAGE_PATH=$(find $HOME -name '*.AppImage' | head -n1)
           echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
-          echo "AppImage generated: $APPIMAGE_PATH"
 
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: SRB2-AppImage
           path: ${{ env.APPIMAGE_PATH }}
