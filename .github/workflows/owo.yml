@@ -17,12 +17,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🐳 Instalar Docker CLI
-      run: sudo apt-get update && sudo apt-get install -y docker.io
+    - name: 🛠️ Instalar aria2 y verificar Docker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y aria2
+        docker --version || (echo "Docker no está disponible" && exit 1)
 
     - name: 📥 Descargar archivo con aria2
       run: |
-        sudo apt-get install -y aria2
         aria2c "${{ inputs.download_url }}" \
           -o "${{ inputs.filename }}" \
           --max-connection-per-server=4 \
@@ -41,6 +43,7 @@ jobs:
           -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
           -e TELEGRAM_LOCAL=1 \
           aiogram/telegram-bot-api:latest
+        echo "Esperando que el servidor esté listo..."
         sleep 15
 
     - name: 📤 Enviar archivo a Telegram
@@ -53,7 +56,7 @@ jobs:
           -F caption="📦 Archivo completo: '${{ inputs.filename }}'" \
           -F document=@"${{ inputs.filename }}"
 
-    - name: 🧹 Detener y limpiar contenedor
+    - name: 🧹 Detener y eliminar contenedor
       run: |
         docker stop telegram-bot-api
         docker rm telegram-bot-api
