@@ -1,4 +1,4 @@
-name: Enviar url telegram
+name: Enviar archivo a Telegram
 
 on:
   workflow_dispatch:
@@ -18,9 +18,12 @@ jobs:
 
     services:
       telegram-bot-api:
-        image: telegrammessenger/telegram-bot-api
+        image: ghcr.io/lukaszraczylo/tdlib-telegram-bot-api-docker/telegram-api-server:latest
         ports:
           - 8081:8081
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         options: >-
           --health-cmd "curl --fail http://localhost:8081 || exit 1"
           --health-interval 10s
@@ -28,7 +31,7 @@ jobs:
           --health-retries 3
 
     steps:
-    - name: 📥 Descargar con aria2
+    - name: 📥 Descargar archivo con aria2
       run: |
         sudo apt-get update && sudo apt-get install -y aria2
         aria2c "${{ inputs.download_url }}" \
@@ -38,16 +41,12 @@ jobs:
           --enable-rpc=false
         ls -lh "${{ inputs.filename }}"
 
-    - name: 📏 Evaluar tamaño
-      id: sizecheck
+    - name: 📤 Enviar archivo a Telegram
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        SIZE=$(stat -c%s "${{ inputs.filename }}")
-        echo "size=$SIZE" >> $GITHUB_OUTPUT
-        echo "📦 Tamaño del archivo: $SIZE bytes"
-
-    - name: 🚀 Enviar archivo completo usando Bot API autohospedada
-      run: |
-        curl -s -X POST "http://localhost:8081/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+        curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+          -F chat_id=${TELEGRAM_CHAT_ID} \
           -F caption="📦 Archivo completo: '${{ inputs.filename }}'" \
           -F document=@"${{ inputs.filename }}"
