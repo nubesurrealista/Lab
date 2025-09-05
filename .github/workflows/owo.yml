@@ -53,7 +53,7 @@ jobs:
       run: |
         curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
           -F chat_id=${TELEGRAM_CHAT_ID} \
-          -F caption="📦 Archivo completo: '${{ inputs.filename }}'" \
+          -F caption="Archivo: '${{ inputs.filename }}'" \
           -F document=@"${{ inputs.filename }}"
 
     - name: 🧹 Detener y eliminar contenedor
