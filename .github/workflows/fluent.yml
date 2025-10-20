@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Clone Fluent Flame repository
-        run: git clone --branch thumbnail-parsing --depth 1 https://github.com/GriddleharkBrainrot/fluentflame-reader.git fluent-flame
+        run: git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git fluent-flame
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
