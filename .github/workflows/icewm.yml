@@ -1,25 +1,26 @@
----
 name: Build IceWM
+
 on:
   push:
     branches:
       - main
-  workflow_dispatch: null
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:bookworm
+
     steps:
       - name: Update package lists
         run: apt-get update -y
+
       - name: Install dependencies
         run: |
           apt-get install -y \
             git \
             build-essential \
-            autoconf \
-            automake \
-            libtool \
+            cmake \
             pkg-config \
             libimlib2-dev \
             libxcomposite-dev \
@@ -36,26 +37,36 @@ jobs:
             libpng-dev \
             librsvg2-dev \
             gettext \
-            libfribidi-dev \
-            libsndfile1-dev \
-            libao-dev  # for sound support
+            libfribidi-dev
+
       - name: Clone IceWM repository
         run: git clone https://github.com/ice-wm/icewm.git
+
       - name: Build IceWM
         run: |
           cd icewm
-          ./autogen.sh
-          ./configure --prefix=/usr --enable-icesound
+          mkdir build
+          cd build
+          cmake \
+            -D CMAKE_INSTALL_PREFIX=/usr \
+            -D CMAKE_BUILD_TYPE=Release \
+            -D CFGDIR=/etc \
+            -D ENABLE_LTO=ON \
+            -D DOCDIR=/usr/share/doc \
+            ..
           make -j$(nproc)
+
       - name: Install to staging directory
         run: |
-          cd icewm
-          mkdir ../build
-          make DESTDIR=../build install
+          cd icewm/build
+          mkdir ../../build
+          make DESTDIR=../../build install
+
       - name: Create tarball
         run: |
           cd build
           tar -czf ../icewm-binaries.tar.gz .
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
