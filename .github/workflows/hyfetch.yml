@@ -2,7 +2,7 @@ name: Build Hyfetch on Debian 12
 
 on:
   workflow_dispatch:
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,12 +12,14 @@ jobs:
       - name: Install system dependencies
         run: |
           apt-get update
-          apt-get install -y curl git pkg-config libssl-dev
+          apt-get install -y curl git pkg-config libssl-dev build-essential ca-certificates
 
       - name: Install Rust
+        shell: bash
         run: |
+          export HOME=/root
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source "$HOME/.cargo/env"
+          . "$HOME/.cargo/env"
 
       - name: Clone repository
         run: git clone https://github.com/hykilpikonna/hyfetch.git
