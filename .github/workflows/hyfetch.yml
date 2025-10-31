@@ -1,53 +1,52 @@
+---
 name: Build Hyfetch on Debian 12
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:12
     env:
       HOME: /root
-
+      DOCKER_CONFIG: /tmp/docker-config
     steps:
       - name: Install system dependencies
         shell: bash
-        run: |
-          apt-get update
-          apt-get install -y curl git pkg-config libssl-dev build-essential ca-certificates
+        run: >
+          mkdir -p "$DOCKER_CONFIG"
 
+          apt-get update
+
+          apt-get install -y curl git pkg-config libssl-dev build-essential ca-certificates
       - name: Install Rust
         shell: bash
-        run: |
+        run: >
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          # Load cargo env for this shell
+
           . "$HOME/.cargo/env"
-          # Export cargo bin permanently for subsequent steps
+
           echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
+      - name: Clone repository
+        shell: bash
+        run: |
+          git clone https://github.com/hykilpikonna/hyfetch.git
+          ls -la hyfetch
       - name: Prepare build
         shell: bash
         run: |
           cd hyfetch
           rustc -vV
           cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
-
       - name: Build
         shell: bash
         run: |
           cd hyfetch
           cargo build --frozen --release --all-features
-
       - name: Test
         shell: bash
         run: |
           cd hyfetch
           cargo test --frozen --all-features
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
