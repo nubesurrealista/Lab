@@ -43,7 +43,6 @@ jobs:
             libsm-dev \
             libx11-dev \
             libxext-dev \
-            xorg-dev \
             libgdk-pixbuf2.0-dev \
             libglib2.0-dev
 
@@ -61,8 +60,7 @@ jobs:
             -D CMAKE_BUILD_TYPE=Release \
             -D CFGDIR=/etc \
             -D ENABLE_LTO=ON \
-            -D DOCDIR=/usr/share/doc \
-            -D CONFIG_XRES=OFF
+            -D DOCDIR=/usr/share/doc
 
       - name: Build
         working-directory: ./build
@@ -74,7 +72,7 @@ jobs:
           mkdir /staging
           make DESTDIR=/staging install
 
-      - name: Create clean tarball
+      - name: Create tarball
         run: |
           cd /staging
           tar -czf /icewm-binaries.tar.gz .
