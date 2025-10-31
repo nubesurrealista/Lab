@@ -9,15 +9,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:bookworm
 
     steps:
-      - name: Update package lists
-        run: apt-get update -y
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          apt-get install -y \
+          sudo apt-get update -y
+          sudo apt-get install -y \
             git \
             build-essential \
             cmake \
@@ -37,34 +37,44 @@ jobs:
             libpng-dev \
             librsvg2-dev \
             gettext \
-            libfribidi-dev
+            libfribidi-dev \
+            libxcursor-dev \
+            libsm-dev \
+            libx11-dev \
+            libxext-dev \
+            xorg-dev \
+            libgdk-pixbuf2.0-dev \
+            libglib2.0-dev
 
       - name: Clone IceWM repository
         run: git clone https://github.com/ice-wm/icewm.git
 
-      - name: Build IceWM
+      - name: Create Build Environment
+        run: mkdir -p build
+
+      - name: Configure CMake
+        working-directory: ./build
         run: |
-          cd icewm
-          mkdir build
-          cd build
-          cmake \
+          cmake ../icewm \
             -D CMAKE_INSTALL_PREFIX=/usr \
             -D CMAKE_BUILD_TYPE=Release \
             -D CFGDIR=/etc \
             -D ENABLE_LTO=ON \
-            -D DOCDIR=/usr/share/doc \
-            ..
-          make -j$(nproc)
+            -D DOCDIR=/usr/share/doc
+
+      - name: Build
+        working-directory: ./build
+        run: make -j$(nproc)
 
       - name: Install to staging directory
+        working-directory: ./build
         run: |
-          cd icewm/build
-          mkdir ../../build
-          make DESTDIR=../../build install
+          mkdir ../staging
+          make DESTDIR=../staging install
 
       - name: Create tarball
         run: |
-          cd build
+          cd staging
           tar -czf ../icewm-binaries.tar.gz .
 
       - name: Upload artifact
