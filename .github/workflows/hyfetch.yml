@@ -7,9 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:12
+    env:
+      HOME: /root
 
     steps:
       - name: Install system dependencies
+        shell: bash
         run: |
           apt-get update
           apt-get install -y curl git pkg-config libssl-dev build-essential ca-certificates
@@ -17,25 +20,30 @@ jobs:
       - name: Install Rust
         shell: bash
         run: |
-          export HOME=/root
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          # Load cargo env for this shell
           . "$HOME/.cargo/env"
+          # Export cargo bin permanently for subsequent steps
+          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Clone repository
-        run: git clone https://github.com/hykilpikonna/hyfetch.git
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Prepare build
+        shell: bash
         run: |
           cd hyfetch
           rustc -vV
           cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
 
       - name: Build
+        shell: bash
         run: |
           cd hyfetch
           cargo build --frozen --release --all-features
 
       - name: Test
+        shell: bash
         run: |
           cd hyfetch
           cargo test --frozen --all-features
