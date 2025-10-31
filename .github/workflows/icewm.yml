@@ -61,7 +61,8 @@ jobs:
             -D CMAKE_BUILD_TYPE=Release \
             -D CFGDIR=/etc \
             -D ENABLE_LTO=ON \
-            -D DOCDIR=/usr/share/doc
+            -D DOCDIR=/usr/share/doc \
+            -D CONFIG_XRES=OFF
 
       - name: Build
         working-directory: ./build
@@ -70,16 +71,16 @@ jobs:
       - name: Install to staging directory
         working-directory: ./build
         run: |
-          mkdir ../staging
-          make DESTDIR=../staging install
+          mkdir /staging
+          make DESTDIR=/staging install
 
-      - name: Create tarball
+      - name: Create clean tarball
         run: |
-          cd staging
-          tar -czf ../icewm-binaries.tar.gz .
+          cd /staging
+          tar -czf /icewm-binaries.tar.gz .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: icewm-binaries
-          path: icewm-binaries.tar.gz
+          path: /icewm-binaries.tar.gz
