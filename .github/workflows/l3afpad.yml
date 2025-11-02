@@ -11,7 +11,7 @@ jobs:
         run: apt-get update
 
       - name: Install dependencies
-        run: apt-get install -y git autoconf automake intltool libgtk-3-dev pkg-config build-essential
+        run: apt-get install -y git autoconf automake intltool libgtk-3-dev pkg-config build-essential tree
 
       - name: Clone Arch Linux packaging repo
         run: git clone https://gitlab.archlinux.org/archlinux/packaging/packages/l3afpad.git arch-l3afpad
@@ -42,8 +42,16 @@ jobs:
           ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
           make
 
+      - name: Show directory structure
+        run: |
+          cd l3afpad
+          tree .
+
+      - name: Find binary
+        run: find l3afpad -name l3afpad -type f -executable
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: l3afpad-binary
-          path: l3afpad/l3afpad
+          path: l3afpad/src/l3afpad
