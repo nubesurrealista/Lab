@@ -11,7 +11,7 @@ jobs:
         run: apt-get update
 
       - name: Install dependencies
-        run: apt-get install -y git autoconf automake intltool libgtk-3-dev pkg-config build-essential tree
+        run: apt-get install -y git autoconf automake intltool libgtk-3-dev pkg-config build-essential tree gettext
 
       - name: Clone Arch Linux packaging repo
         run: git clone https://gitlab.archlinux.org/archlinux/packaging/packages/l3afpad.git arch-l3afpad
