@@ -1,83 +1,43 @@
----
-name: Build l3afpad on Debian 12
-on:
-  workflow_dispatch: null
+name: Build l3afpad
+
+on: workflow_dispatch
+
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:12
     steps:
-      - name: Install build dependencies
-        run: >
-          apt-get update
+      - name: Update package list
+        run: apt-get update
 
-          apt-get install -y build-essential autoconf automake autotools-dev intltool pkg-config libgtk-3-dev libcairo2-dev libglib2.0-dev libpango1.0-dev git wget
-      - name: Clone l3afpad repository
+      - name: Install dependencies
+        run: apt-get install -y git autoconf automake intltool libgtk-3-dev pkg-config build-essential
+
+      - name: Clone Arch Linux packaging repo
+        run: git clone https://gitlab.archlinux.org/archlinux/packaging/packages/l3afpad.git arch-l3afpad
+
+      - name: Clone l3afpad source
+        run: git clone https://github.com/stevenhoneyman/l3afpad.git
+
+      - name: Prepare source
         run: |
-          git clone https://github.com/stevenhoneyman/l3afpad.git
           cd l3afpad
           git checkout v0.8.18.1.11
-      - name: Download patches from Arch Linux repository
-        run: >
-          cd l3afpad
-
-          base_url="https://gitlab.archlinux.org/archlinux/packaging/packages/l3afpad/-/raw/main/"
-
-          patches=(
-            "l3afpad-redraw-line-numbers.patch"
-            "l3afpad-themed-icon.patch" 
-            "l3afpad-keywords.patch"
-            "l3afpad-right-padding.patch"
-            "l3afpad-wrap-mode.patch"
-            "l3afpad-linenumber-color.patch"
-            "l3afpad.appdata.xml"
-          )
-
-
-          for patch in "${patches[@]}"; do
-            wget -O ../$patch "${base_url}${patch}"
-          done
-      - name: Apply commits and patches
-        run: |
-          cd l3afpad
           git cherry-pick -n 78978120eb1978b842e7c155e075440cab53d624
           git cherry-pick -n aa0b0eb0d7efeb5e5b798ef01a0bd1e62f7c7ab0
           git cherry-pick -n 39ca226b866551c6a9833a31fea78af13ef6ac9f
           git cherry-pick -n 665fca6d70e9dfd1af101e7ea85677bc959e9906
           git cherry-pick -n 01d397c3328eb77f5241bc50ee78e44070aeceb4
-          git apply -3 ../l3afpad-redraw-line-numbers.patch
-          git apply -3 ../l3afpad-themed-icon.patch
-          git apply -3 ../l3afpad-keywords.patch
-          git apply -3 ../l3afpad-right-padding.patch
-          git apply -3 ../l3afpad-wrap-mode.patch
-          git apply -3 ../l3afpad-linenumber-color.patch
-      - name: Generate configure script
-        run: |
-          cd l3afpad
+          git apply -3 ../arch-l3afpad/l3afpad-redraw-line-numbers.patch
+          git apply -3 ../arch-l3afpad/l3afpad-themed-icon.patch
+          git apply -3 ../arch-l3afpad/l3afpad-keywords.patch
+          git apply -3 ../arch-l3afpad/l3afpad-right-padding.patch
+          git apply -3 ../arch-l3afpad/l3afpad-wrap-mode.patch
+          git apply -3 ../arch-l3afpad/l3afpad-linenumber-color.patch
           autoreconf -fi
-      - name: Configure build
+
+      - name: Configure and build
         run: |
           cd l3afpad
           ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
-      - name: Compile l3afpad
-        run: |
-          cd l3afpad
           make
-      - name: Create package directory
-        run: |
-          mkdir -p l3afpad-package/usr/bin
-          mkdir -p l3afpad-package/usr/share
-          mkdir -p l3afpad-package/usr/share/metainfo
-      - name: Install binaries and data
-        run: >
-          cd l3afpad
-
-          make DESTDIR=../l3afpad-package install
-
-          install -Dm644 ../l3afpad.appdata.xml ../l3afpad-package/usr/share/metainfo/l3afpad.appdata.xml
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: l3afpad-debian-package
-          path: l3afpad-package/
-          retention-days: 1
