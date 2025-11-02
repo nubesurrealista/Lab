@@ -41,3 +41,9 @@ jobs:
           cd l3afpad
           ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
           make
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3afpad-binary
+          path: l3afpad/l3afpad
