@@ -1,11 +1,11 @@
 name: Build l3afpad (Spanish)
-
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:12
+
     steps:
       - name: Update package list
         run: apt-get update
@@ -15,44 +15,25 @@ jobs:
           apt-get install -y \
             git autoconf automake intltool \
             libgtk-3-dev pkg-config build-essential \
-            gettext tree
+            gettext
 
-      - name: Clone Arch Linux packaging (patches)
-        run: git clone https://gitlab.archlinux.org/archlinux/packaging/packages/l3afpad.git arch-l3afpad
+      - name: Clone l3afpad
+        run: git clone https://github.com/nubesurrealista/l3afpad.git
 
-      - name: Clone l3afpad source
-        run: git clone https://github.com/stevenhoneyman/l3afpad.git
-
-      - name: Apply patches and prepare
+      - name: Prepare and build
         run: |
           cd l3afpad
-          git checkout v0.8.18.1.11
-          git cherry-pick -n 78978120eb1978b842e7c155e075440cab53d624 || true
-          git cherry-pick -n aa0b0eb0d7efeb5e5b798ef01a0bd1e62f7c7ab0 || true
-          git cherry-pick -n 39ca226b866551c6a9833a31fea78af13ef6ac9f || true
-          git cherry-pick -n 665fca6d70e9dfd1af101e7ea85677bc959e9906 || true
-          git cherry-pick -n 01d397c3328eb77f5241bc50ee78e44070aeceb4 || true
-          git apply -3 ../arch-l3afpad/l3afpad-redraw-line-numbers.patch || true
-          git apply -3 ../arch-l3afpad/l3afpad-themed-icon.patch || true
-          git apply -3 ../arch-l3afpad/l3afpad-keywords.patch || true
-          git apply -3 ../arch-l3afpad/l3afpad-right-padding.patch || true
-          git apply -3 ../arch-l3afpad/l3afpad-wrap-mode.patch || true
-          git apply -3 ../arch-l3afpad/l3afpad-linenumber-color.patch || true
           autoreconf -fi
-
-      - name: Configure and build
-        run: |
-          cd l3afpad
           ./configure --prefix=/usr
           make -j$(nproc)
 
-      - name: Install to staging directory
+      - name: Install to staging
         run: |
           cd l3afpad
           mkdir -p ../install-staging
           make install DESTDIR=$PWD/../install-staging
 
-      - name: Verify Spanish translation exists
+      - name: Verify Spanish translation
         run: |
           find install-staging -name "l3afpad.mo" | grep es || echo "No Spanish .mo found!"
           ls -l install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo || true
@@ -61,12 +42,12 @@ jobs:
         run: |
           mkdir -p package/usr/bin
           mkdir -p package/usr/share/locale/es/LC_MESSAGES
-          cp install-staging/usr/bin/l3afpad           package/usr/bin/
+          cp install-staging/usr/bin/l3afpad package/usr/bin/
           cp install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo \
                package/usr/share/locale/es/LC_MESSAGES/
           tar -czf l3afpad-es.tar.gz -C package .
 
-      - name: Upload Spanish build
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: l3afpad-es-full
