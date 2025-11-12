@@ -70,6 +70,16 @@ jobs:
           ninja -C build
           ninja -C build install
 
+      - name: Download and build Girara
+        working-directory: /build-dir
+        run: |
+          export PKG_CONFIG_PATH=/artifacts/usr/lib/pkgconfig:/artifacts/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+          git clone https://github.com/pwmt/girara.git
+          cd girara
+          meson setup build --prefix=/usr
+          ninja -C build
+          DESTDIR=/artifacts ninja -C build install
+
       - name: Download and build Zathura
         working-directory: /build-dir
         run: |
