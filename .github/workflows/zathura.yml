@@ -52,7 +52,8 @@ jobs:
             docbook-xsl \
             gtk-doc-tools \
             dbus \
-            shared-mime-info
+            shared-mime-info \
+            libmagic-dev
 
       - name: Create build directory
         run: mkdir /build-dir
@@ -75,6 +76,7 @@ jobs:
           curl -L -O https://github.com/pwmt/zathura/archive/refs/tags/0.5.14.tar.gz
           tar xzf 0.5.14.tar.gz
           cd zathura-0.5.14
+          sed -i "s/dependency('libmagic')/dependency('magic')/" meson.build
           meson setup build --prefix=/usr
           ninja -C build
           xvfb-run ninja -C build test
