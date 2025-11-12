@@ -53,7 +53,8 @@ jobs:
             gtk-doc-tools \
             dbus \
             shared-mime-info \
-            libmagic-dev
+            libmagic-dev \
+            gettext
 
       - name: Create build directory
         run: mkdir /build-dir
