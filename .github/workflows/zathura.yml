@@ -180,3 +180,4 @@ jobs:
         with:
           name: zathura-build
           path: /zathura-build.tar.gz
+          
