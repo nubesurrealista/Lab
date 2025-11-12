@@ -74,8 +74,9 @@ jobs:
         working-directory: /build-dir
         run: |
           export PKG_CONFIG_PATH=/artifacts/usr/lib/pkgconfig:/artifacts/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-          git clone https://github.com/pwmt/girara.git
-          cd girara
+          curl -L -O https://github.com/pwmt/girara/archive/refs/tags/0.4.5.tar.gz
+          tar xzf 0.4.5.tar.gz
+          cd girara-0.4.5
           meson setup build --prefix=/usr
           ninja -C build
           DESTDIR=/artifacts ninja -C build install
@@ -87,6 +88,29 @@ jobs:
           curl -L -O https://github.com/pwmt/zathura/archive/refs/tags/0.5.14.tar.gz
           tar xzf 0.5.14.tar.gz
           cd zathura-0.5.14
+          cat > 0001-Fix-config-load-files.patch << EOF
+          diff --git a/zathura/config.c b/zathura/config.c
+          index abcdef..fedcba 100644
+          --- a/zathura/config.c
+          +++ b/zathura/config.c
+          @@ -715,7 +715,13 @@ config_load_files(zathura_t* zathura, const char* file, const char* source_dir)
+            char* config_path = girara_get_xdg_path(XDG_CONFIG_DIRS);
+            if (config_path == NULL) {
+              return;
+            }
+          -  girara_list_t* config_dirs = girara_split_path_array(config_path);
+          +  girara_list_t* config_dirs = girara_list_new2(g_free);
+          +  if (config_dirs) {
+          +    char** paths = g_strsplit(config_path, ":", -1);
+          +    for (char** p = paths; *p; ++p) {
+          +      girara_list_append(config_dirs, g_strdup(*p));
+          +    }
+          +    g_strfreev(paths);
+          +  }
+            g_free(config_path);
+            // rest of the code...
+          EOF
+          patch -p1 < 0001-Fix-config-load-files.patch
           meson setup build --prefix=/usr
           ninja -C build
           xvfb-run ninja -C build test
@@ -180,4 +204,3 @@ jobs:
         with:
           name: zathura-build
           path: /zathura-build.tar.gz
-          
