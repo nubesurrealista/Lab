@@ -1,0 +1,51 @@
+---
+name: Build xreader on Debian 12
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:12
+      options: --privileged
+    steps:
+      - name: Install required tools
+        run: |
+          apt-get update
+          apt-get install -y \
+            git \
+            devscripts \
+            equivs \
+            build-essential \
+            fakeroot \
+            debhelper \
+            sudo \
+            ca-certificates
+      - name: Checkout xreader repository
+        uses: actions/checkout@v4
+        with:
+          repository: linuxmint/xreader
+          path: xreader
+      - name: Install build dependencies
+        working-directory: ./xreader
+        run: |
+          mk-build-deps -ir debian/control
+          echo "Dependencies installed."
+      - name: Build package
+        working-directory: ./xreader
+        run: |
+          dpkg-buildpackage -us -uc -b
+      - name: List generated .deb files
+        run: >
+          echo "=== Generated .deb files ==="
+
+          find .. -name "*.deb" -o -name "*.changes" -o -name "*.buildinfo" | sort
+      - name: Upload .deb artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xreader-debs
+          path: |
+            ../*.deb
+            ../*.changes
+            ../*.buildinfo
+          if-no-files-found: error
+          retention-days: 1
