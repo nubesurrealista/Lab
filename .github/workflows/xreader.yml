@@ -1,5 +1,5 @@
 ---
-name: Build xreader on Debian 12 (with Mint repos)
+name: Build xreader on Debian 12 (with manual xapps deps)
 on: workflow_dispatch
 jobs:
   build:
@@ -11,7 +11,7 @@ jobs:
       - name: Install base tools
         run: |
           apt-get update
-          apt-get install -y \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
             git \
             devscripts \
             equivs \
@@ -19,46 +19,65 @@ jobs:
             fakeroot \
             debhelper \
             sudo \
-            gnupg \
             ca-certificates \
             wget \
-            apt-utils
-      - name: Add Linux Mint repository (for xapps)
+            dpkg-dev
+      - name: Download and install xapps dependencies (in exact order)
         run: >
-          echo "deb http://packages.linuxmint.com vera main upstream import" >
-          /etc/apt/sources.list.d/mint.list
+          # 1. xapps-common
 
-          echo "deb http://packages.linuxmint.com vera-backports main" >> /etc/apt/sources.list.d/mint.list
+          wget -q http://packages.linuxmint.com/pool/backport/x/xapp/xapps-common_2.4.2+vera_all.deb
 
-          wget -q -O - http://packages.linuxmint.com/key.asc | gpg --dearmor -o /usr/share/keyrings/linuxmint-archive-keyring.gpg
+          dpkg -i xapps-common_2.4.2+vera_all.deb
 
-          echo "deb [signed-by=/usr/share/keyrings/linuxmint-archive-keyring.gpg] http://packages.linuxmint.com vera main upstream import backports" > /etc/apt/sources.list.d/mint.list
-      - name: Update package list with Mint repos
-        run: |
-          apt-get update
+
+          # 2. libxapp1
+
+          wget -q http://packages.linuxmint.com/pool/backport/x/xapp/libxapp1_2.4.2+vera_amd64.deb
+
+          dpkg -i libxapp1_2.4.2+vera_amd64.deb
+
+
+          # 3. gir1.2-xapp-1.0
+
+          wget -q http://packages.linuxmint.com/pool/backport/x/xapp/gir1.2-xapp-1.0_2.4.2+vera_amd64.deb
+
+          dpkg -i gir1.2-xapp-1.0_2.4.2+vera_amd64.deb
+
+
+          # 4. libxapp-dev
+
+          wget -q http://packages.linuxmint.com/pool/backport/x/xapp/libxapp-dev_2.4.2+vera_amd64.deb
+
+          dpkg -i libxapp-dev_2.4.2+vera_amd64.deb
+
+
+          # Clean up downloaded files
+
+          rm -f *.deb
+
+
+          echo "xapps dependencies installed successfully."
       - name: Checkout xreader
         uses: actions/checkout@v4
         with:
           repository: linuxmint/xreader
           path: xreader
-      - name: Install build dependencies (non-interactive)
+      - name: Install xreader build dependencies (non-interactive)
         working-directory: ./xreader
         env:
           DEBIAN_FRONTEND: noninteractive
         run: >
-          # Genera el paquete de dependencias
-
           mk-build-deps -i -t "apt-get -y --no-install-recommends" debian/control
       - name: Build xreader
         working-directory: ./xreader
         run: |
           dpkg-buildpackage -us -uc -b
-      - name: List and upload .deb artifacts
+      - name: List generated packages
         run: >
-          echo "=== Generated packages ==="
+          echo "=== Generated .deb files ==="
 
           find .. -name "*.deb" -o -name "*.changes" -o -name "*.buildinfo" | sort
-        continue-on-error: true
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
