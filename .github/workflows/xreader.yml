@@ -1,5 +1,5 @@
 ---
-name: Build xreader on Debian 12 (with manual xapps deps)
+name: Build xreader on Debian 12
 on: workflow_dispatch
 jobs:
   build:
@@ -8,10 +8,12 @@ jobs:
       image: debian:12
       options: --privileged
     steps:
-      - name: Install base tools
+      - name: Install base tools and dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          apt-get install -y \
             git \
             devscripts \
             equivs \
@@ -21,38 +23,70 @@ jobs:
             sudo \
             ca-certificates \
             wget \
-            dpkg-dev
-      - name: Download and install xapps dependencies (in exact order)
+            dpkg-dev \
+            # xapps-common deps
+            inxi \
+            python3-gi \
+            python3-gi-cairo \
+            xdg-utils \
+            dconf-gsettings-backend \
+            # xreader build deps (common)
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libpoppler-glib-dev \
+            libdjvulibre-dev \
+            libspectre-dev \
+            libtiff-dev \
+            libwebp-dev \
+            libcairo2-dev \
+            libxml2-dev \
+            valac \
+            gobject-introspection \
+            libgirepository1.0-dev \
+            libcaja-extension-dev \
+            libpango1.0-dev \
+            librsvg2-dev
+      - name: Download and install xapps packages (exact order)
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: >
+          set -e
+
+
           # 1. xapps-common
 
           wget -q http://packages.linuxmint.com/pool/backport/x/xapp/xapps-common_2.4.2+vera_all.deb
 
-          dpkg -i xapps-common_2.4.2+vera_all.deb
+          dpkg -i xapps-common_2.4.2+vera_all.deb || apt-get install -f -y
 
 
           # 2. libxapp1
 
           wget -q http://packages.linuxmint.com/pool/backport/x/xapp/libxapp1_2.4.2+vera_amd64.deb
 
-          dpkg -i libxapp1_2.4.2+vera_amd64.deb
+          dpkg -i libxapp1_2.4.2+vera_amd64.deb || apt-get install -f -y
 
 
           # 3. gir1.2-xapp-1.0
 
           wget -q http://packages.linuxmint.com/pool/backport/x/xapp/gir1.2-xapp-1.0_2.4.2+vera_amd64.deb
 
-          dpkg -i gir1.2-xapp-1.0_2.4.2+vera_amd64.deb
+          dpkg -i gir1.2-xapp-1.0_2.4.2+vera_amd64.deb || apt-get install -f -y
 
 
           # 4. libxapp-dev
 
           wget -q http://packages.linuxmint.com/pool/backport/x/xapp/libxapp-dev_2.4.2+vera_amd64.deb
 
-          dpkg -i libxapp-dev_2.4.2+vera_amd64.deb
+          dpkg -i libxapp-dev_2.4.2+vera_amd64.deb || apt-get install -f -y
 
 
-          # Clean up downloaded files
+          # Final fix
+
+          apt-get install -f -y
+
+
+          # Cleanup
 
           rm -f *.deb
 
@@ -63,12 +97,13 @@ jobs:
         with:
           repository: linuxmint/xreader
           path: xreader
-      - name: Install xreader build dependencies (non-interactive)
+      - name: Install xreader build dependencies
         working-directory: ./xreader
         env:
           DEBIAN_FRONTEND: noninteractive
         run: >
-          mk-build-deps -i -t "apt-get -y --no-install-recommends" debian/control
+          mk-build-deps -i -t "apt-get -y --no-install-recommends" debian/control ||
+          apt-get install -f -y
       - name: Build xreader
         working-directory: ./xreader
         run: |
@@ -87,4 +122,4 @@ jobs:
             ../*.changes
             ../*.buildinfo
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
