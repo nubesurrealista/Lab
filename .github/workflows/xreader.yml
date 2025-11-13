@@ -1,5 +1,5 @@
 ---
-name: Build xreader on Debian 12
+name: Build xreader on Debian 12 (with Mint repos)
 on: workflow_dispatch
 jobs:
   build:
@@ -8,7 +8,7 @@ jobs:
       image: debian:12
       options: --privileged
     steps:
-      - name: Install required tools
+      - name: Install base tools
         run: |
           apt-get update
           apt-get install -y \
@@ -19,33 +19,53 @@ jobs:
             fakeroot \
             debhelper \
             sudo \
-            ca-certificates
-      - name: Checkout xreader repository
+            gnupg \
+            ca-certificates \
+            wget \
+            apt-utils
+      - name: Add Linux Mint repository (for xapps)
+        run: >
+          echo "deb http://packages.linuxmint.com vera main upstream import" >
+          /etc/apt/sources.list.d/mint.list
+
+          echo "deb http://packages.linuxmint.com vera-backports main" >> /etc/apt/sources.list.d/mint.list
+
+          wget -q -O - http://packages.linuxmint.com/key.asc | gpg --dearmor -o /usr/share/keyrings/linuxmint-archive-keyring.gpg
+
+          echo "deb [signed-by=/usr/share/keyrings/linuxmint-archive-keyring.gpg] http://packages.linuxmint.com vera main upstream import backports" > /etc/apt/sources.list.d/mint.list
+      - name: Update package list with Mint repos
+        run: |
+          apt-get update
+      - name: Checkout xreader
         uses: actions/checkout@v4
         with:
           repository: linuxmint/xreader
           path: xreader
-      - name: Install build dependencies
+      - name: Install build dependencies (non-interactive)
         working-directory: ./xreader
-        run: |
-          mk-build-deps -ir debian/control
-          echo "Dependencies installed."
-      - name: Build package
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: >
+          # Genera el paquete de dependencias
+
+          mk-build-deps -i -t "apt-get -y --no-install-recommends" debian/control
+      - name: Build xreader
         working-directory: ./xreader
         run: |
           dpkg-buildpackage -us -uc -b
-      - name: List generated .deb files
+      - name: List and upload .deb artifacts
         run: >
-          echo "=== Generated .deb files ==="
+          echo "=== Generated packages ==="
 
           find .. -name "*.deb" -o -name "*.changes" -o -name "*.buildinfo" | sort
-      - name: Upload .deb artifacts
+        continue-on-error: true
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xreader-debs
+          name: xreader-debs-debian12
           path: |
             ../*.deb
             ../*.changes
             ../*.buildinfo
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
