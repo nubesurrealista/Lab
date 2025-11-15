@@ -40,11 +40,14 @@ jobs:
         run: >
           cd retroarch
 
-          ./configure --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca --disable-pipewire --disable-wayland --disable-slang
+          ./configure --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca --disable-pipewire --disable-wayland --disable-slang --disable-qt
 
           make clean
 
           make -j$(nproc)
+      - name: Strip binary
+        run: |
+          strip retroarch/retroarch
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
