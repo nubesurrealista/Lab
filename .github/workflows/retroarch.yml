@@ -1,5 +1,5 @@
 ---
-name: Build RetroArch for Debian 12
+name: Build RetroArch for Debian 12 (Clang Optimized)
 on:
   workflow_dispatch: null
 jobs:
@@ -7,13 +7,22 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:bookworm
     steps:
-      - name: Install dependencies
+      - name: Install dependencies + Clang
         run: >
           apt-get update -y
 
           apt-get upgrade -y
 
-          apt-get install -y curl jq wget tar xz-utils git build-essential cmake p7zip-full pkg-config libc6-dev libsdl2-dev libxml2-dev x11proto-xext-dev libxxf86vm-dev libxinerama-dev libudev-dev libusb-1.0-0-dev libasound2-dev libfreetype6-dev libgbm-dev libdrm-dev libegl1-mesa-dev python3-dev zlib1g-dev libx11-xcb-dev libxkbcommon-dev libgles2-mesa-dev
+          apt-get install -y \
+            curl jq wget tar xz-utils git \
+            build-essential cmake p7zip-full \
+            pkg-config libc6-dev \
+            libsdl2-dev libxml2-dev \
+            x11proto-xext-dev libxxf86vm-dev libxinerama-dev \
+            libudev-dev libusb-1.0-0-dev libasound2-dev \
+            libfreetype6-dev libgbm-dev libdrm-dev libegl1-mesa-dev \
+            python3-dev zlib1g-dev libx11-xcb-dev libxkbcommon-dev libgles2-mesa-dev \
+            clang lld
       - name: Get latest RetroArch source
         run: >
           LATEST_RELEASE=$(curl -sL
@@ -36,27 +45,43 @@ jobs:
           mkdir retroarch
 
           tar -xvf retroarch-sourceonly-*.tar.xz -C retroarch --strip-components=1
-      - name: Configure and build
+      - name: Configure and build with Clang (extreme low-end optimization)
         env:
-          CFLAGS: -Os -march=core2 -pipe -fno-stack-protector -ffunction-sections
-            -fdata-sections
-          CXXFLAGS: -Os -march=core2 -pipe -fno-stack-protector -ffunction-sections
-            -fdata-sections
-          LDFLAGS: -Wl,--gc-sections -s
+          CC: clang
+          CXX: clang++
+          CFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections -flto=thin
+          CXXFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections -flto=thin
+          LDFLAGS: -fuse-ld=lld -Wl,--gc-sections -flto=thin
         run: >
           cd retroarch
 
-          ./configure --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca --disable-pipewire --disable-wayland --disable-slang --disable-qt --disable-xmb --disable-ozone --disable-materialui --disable-netplaydiscovery --disable-networkgamepad --disable-command --disable-translate --disable-discord --disable-mpv --disable-ssa --disable-network_video --disable-v4l2 --disable-microphone --disable-cheevos --disable-lua --disable-libretrodb --disable-overlay --disable-accessibility --disable-bluetooth --disable-debug --disable-game_ai --disable-steam --disable-mist --disable-bsv_movie --disable-kms
-
+          ./configure \
+            --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca \
+            --disable-pipewire --disable-wayland --disable-slang --disable-qt \
+            --disable-xmb --disable-ozone --disable-materialui \
+            --disable-netplaydiscovery --disable-networkgamepad --disable-command \
+            --disable-translate --disable-discord --disable-mpv --disable-ssa \
+            --disable-network_video --disable-v4l2 --disable-microphone \
+            --disable-cheevos --disable-lua --disable-libretrodb \
+            --disable-overlay --disable-accessibility --disable-bluetooth \
+            --disable-debug --disable-game_ai --disable-steam --disable-mist \
+            --disable-kms --disable-bsv_movie
           make clean
 
           make -j$(nproc)
-      - name: Strip binary
+      - name: Strip binary (extra)
         run: |
-          strip retroarch/retroarch
+          strip --strip-unneeded retroarch/retroarch
+      - name: Show final size
+        run: |
+          echo "Final binary size:"
+          ls -lh retroarch/retroarch
+          du -h retroarch/retroarch
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: retroarch-binary
+          name: retroarch-clang-optimized
           path: retroarch/retroarch
           retention-days: 1
