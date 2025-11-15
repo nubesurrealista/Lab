@@ -37,10 +37,16 @@ jobs:
 
           tar -xvf retroarch-sourceonly-*.tar.xz -C retroarch --strip-components=1
       - name: Configure and build
+        env:
+          CFLAGS: -Os -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections
+          CXXFLAGS: -Os -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections
+          LDFLAGS: -Wl,--gc-sections -s
         run: >
           cd retroarch
 
-          ./configure --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca --disable-pipewire --disable-wayland --disable-slang --disable-qt --disable-xmb --disable-ozone --disable-materialui --disable-netplaydiscovery --disable-networkgamepad --disable-command --disable-translate --disable-discord --disable-mpv --disable-ssa --disable-network_video --disable-v4l2 --disable-microphone --disable-cheevos --disable-lua --disable-libretrodb --disable-overlay --disable-accessibility --disable-bluetooth --disable-debug --disable-game_ai --disable-steam --disable-mist
+          ./configure --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca --disable-pipewire --disable-wayland --disable-slang --disable-qt --disable-xmb --disable-ozone --disable-materialui --disable-netplaydiscovery --disable-networkgamepad --disable-command --disable-translate --disable-discord --disable-mpv --disable-ssa --disable-network_video --disable-v4l2 --disable-microphone --disable-cheevos --disable-lua --disable-libretrodb --disable-overlay --disable-accessibility --disable-bluetooth --disable-debug --disable-game_ai --disable-steam --disable-mist --disable-kms
 
           make clean
 
