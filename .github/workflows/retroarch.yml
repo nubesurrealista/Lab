@@ -13,7 +13,7 @@ jobs:
 
           apt-get upgrade -y
 
-          apt-get install -y curl jq wget tar xz-utils git build-essential cmake p7zip-full libv4l-dev pkg-config libc6-dev libpulse-dev libsdl2-dev libxml2-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev x11proto-xext-dev libxxf86vm-dev libxinerama-dev libudev-dev libusb-1.0-0-dev libasound2-dev libxv-dev libopenal-dev libjack-jackd2-dev libfreetype6-dev libgbm-dev libdrm-dev libegl1-mesa-dev python3-dev zlib1g-dev libx11-xcb-dev libxkbcommon-dev libgles2-mesa-dev libsdl-image1.2-dev yasm mesa-libegl-dev libxkbcommon-dev mesa-libgbm-dev flac-dev slang-dev libcaca-dev qtbase5-dev egl-wayland-dev wayland-dev wayland-protocols-dev mesa-vulkan-dev libxxf86vm-dev
+          apt-get install -y curl jq wget tar xz-utils git build-essential cmake p7zip-full libv4l-dev pkg-config libc6-dev libpulse-dev libsdl2-dev libxml2-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev x11proto-xext-dev libxxf86vm-dev libxinerama-dev libudev-dev libusb-1.0-0-dev libasound2-dev libxv-dev libopenal-dev libjack-jackd2-dev libfreetype6-dev libgbm-dev libdrm-dev libegl1-mesa-dev python3-dev zlib1g-dev libx11-xcb-dev libxkbcommon-dev libgles2-mesa-dev libsdl-image1.2-dev yasm libflac-dev libslang2-dev libcaca-dev qtbase5-dev libegl-wayland-dev libwayland-dev wayland-protocols libvulkan-dev
       - name: Get latest RetroArch source
         run: >
           LATEST_RELEASE=$(curl -sL
