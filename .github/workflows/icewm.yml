@@ -1,25 +1,24 @@
-name: Build IceWM
-
+---
+name: Build IceWM (Clang Optimized - Low-End)
 on:
-  workflow_dispatch:
-  
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:bookworm
-
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (for workflow)
         uses: actions/checkout@v4
-
-      - name: Install dependencies
+      - name: Install dependencies + Clang
         run: |
           apt-get update -y
+          apt-get upgrade -y
           apt-get install -y \
             git \
             build-essential \
             cmake \
             pkg-config \
+            clang lld \
             libimlib2-dev \
             libxcomposite-dev \
             libxdamage-dev \
@@ -42,40 +41,63 @@ jobs:
             libxext-dev \
             libgdk-pixbuf2.0-dev \
             libglib2.0-dev
-
       - name: Clone IceWM repository
-        run: git clone https://github.com/ice-wm/icewm.git
-
-      - name: Create Build Environment
+        run: |
+          git clone --depth 1 https://github.com/ice-wm/icewm.git
+          cd icewm
+          git log -1 --format="%H %s"
+      - name: Create Build Directory
         run: mkdir -p build
-
-      - name: Configure CMake
+      - name: Configure CMake with Clang + Extreme Low-End Optimization
         working-directory: ./build
+        env:
+          CC: clang
+          CXX: clang++
+          CFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections -flto=thin
+          CXXFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
+            -fdata-sections -flto=thin
+          LDFLAGS: -fuse-ld=lld -Wl,--gc-sections -flto=thin
         run: |
           cmake ../icewm \
+            -D CMAKE_C_COMPILER=clang \
+            -D CMAKE_CXX_COMPILER=clang++ \
             -D CMAKE_INSTALL_PREFIX=/usr \
-            -D CMAKE_BUILD_TYPE=Release \
+            -D CMAKE_BUILD_TYPE=MinSizeRel \
             -D CFGDIR=/etc \
             -D ENABLE_LTO=ON \
-            -D DOCDIR=/usr/share/doc
-
-      - name: Build
+            -D DOCDIR=/usr/share/doc/icewm \
+            -D ENABLE_NLS=ON \
+            -D ENABLE_FRI2D=ON \
+            -D ENABLE_XCURSOR=ON \
+            -D ENABLE_XCOMPOSITE=ON \
+            -D ENABLE_XDAMAGE=ON \
+            -D ENABLE_XRENDER=ON \
+            -D ENABLE_XRANDR=ON \
+            -D ENABLE_XINERAMA=ON
+      - name: Build with Clang
         working-directory: ./build
-        run: make -j$(nproc)
-
+        run: |
+          make -j$(nproc)
+          echo "Build completed. Checking binary size..."
+          find . -name "icewm*" -type f -executable -exec ls -lh {} \;
       - name: Install to staging directory
         working-directory: ./build
         run: |
-          mkdir /staging
+          mkdir -p /staging
           make DESTDIR=/staging install
-
-      - name: Create tarball
+      - name: Strip binaries (extra optimization)
+        run: |
+          find /staging -type f -executable -exec strip --strip-unneeded {} \;
+      - name: Create portable tarball
         run: |
           cd /staging
-          tar -czf /icewm-binaries.tar.gz .
-
+          tar -czf /icewm-clang-lowend.tar.gz .
+          echo "Final tarball size:"
+          ls -lh /icewm-clang-lowend.tar.gz
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: icewm-binaries
-          path: /icewm-binaries.tar.gz
+          name: icewm-clang-lowend
+          path: /icewm-clang-lowend.tar.gz
+          retention-days: 1
