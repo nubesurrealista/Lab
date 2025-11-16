@@ -1,24 +1,25 @@
-name: Build and Package Fluent Flame Debian Package (.deb)
+name: Build and Package Fluent Flame Native Linux Binary
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-deb:
+  build-native:
     runs-on: ubuntu-latest
     container: debian:12
     steps:
       - name: Install system dependencies
         run: |
-          apt-get update
+          apt-get update -y
           apt-get install -y \
             curl gnupg git build-essential \
             libx11-dev libxkbfile-dev libsecret-1-dev \
             libkrb5-dev libnss3-dev libasound2-dev \
             libcups2-dev libcap-dev libxtst-dev \
-            libxss-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev libnotify-dev python3 unzip zip \
-            fakeroot dpkg-dev
+            libxss-dev \
+            libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libnotify-dev \
+            python3 unzip zip
 
       - name: Install Node.js 20
         run: |
@@ -36,16 +37,16 @@ jobs:
         working-directory: fluent-flame
         run: npm run build
 
-      - name: Build Debian Package (.deb)
+      - name: Build Native Linux Binary (tar.xz)
         working-directory: fluent-flame
-        run: npx electron-builder --linux deb --publish never
+        run: npx electron-builder --linux tar.xz --publish never
 
-      - name: List generated .deb files
-        run: find $GITHUB_WORKSPACE -name '*.deb' -print
+      - name: List generated files
+        run: find $GITHUB_WORKSPACE -name '*.tar.xz' -print
 
-      - name: Upload Debian Package
+      - name: Upload Native Binary
         uses: actions/upload-artifact@v4
         with:
-          name: FluentFlame-Debian-Package
+          name: FluentFlame-Native-Linux
           path: |
-            **/*.deb
+            **/*.tar.xz
