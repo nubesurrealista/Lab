@@ -1,0 +1,65 @@
+name: Build TIC-80 PRO (v1.1.2837) on Debian 12
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-debian12:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
+      options: --user root
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update -y
+          apt-get install -y --no-install-recommends \
+            ca-certificates gnupg wget \
+            build-essential cmake git \
+            libsdl2-dev ruby-dev \
+            libwayland-dev libpipewire-0.3-dev \
+            libglvnd-dev libglu1-mesa-dev freeglut3-dev libcurl4-openssl-dev
+
+      - name: Clone TIC-80 stable release v1.1.2837 with submodules
+        run: |
+          git clone --recursive --branch v1.1.2837 https://github.com/nesbox/TIC-80.git
+
+      - name: Configure CMake with PRO features enabled
+        run: |
+          cd TIC-80/build
+          cmake -DBUILD_PRO=On \
+                -DBUILD_SDLGPU=On \
+                -DBUILD_WITH_ALL=On \
+                -DCMAKE_BUILD_TYPE=Release \
+                ..
+
+      - name: Compile
+        run: |
+          cd TIC-80/build
+          make -j$(nproc)
+
+      - name: Locate and prepare final binary
+        id: locate
+        run: |
+          BINARY=$(find TIC-80 -type f -executable -name tic80 | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "ERROR: tic80 binary not found" >&2
+            exit 1
+          fi
+          echo "Found binary: $BINARY"
+          cp "$BINARY" ./tic80-pro-linux-x86_64
+          strip --strip-unneeded ./tic80-pro-linux-x86_64
+          chmod +x ./tic80-pro-linux-x86_64
+          echo "binary_path=./tic80-pro-linux-x86_64" >> $GITHUB_OUTPUT
+
+      - name: Verify PRO build
+        run: |
+          ./tic80-pro-linux-x86_64 --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tic80-pro-linux-x86_64-debian12
+          path: ${{ steps.locate.outputs.binary_path }}
+          retention-days: 1
