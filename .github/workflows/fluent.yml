@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone Fluent Flame repository
-        run: git clone --depth 1
+        run: git clone --branch deb-packaging --depth 1
           https://github.com/FluentFlame/fluentflame-reader.git fluent-flame
       - name: Set up Node.js
         uses: actions/setup-node@v4
