@@ -1,0 +1,40 @@
+name: Build and Upload https-dns-proxy Artifact
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: debian:12
+
+    steps:
+      - name: Update package lists
+        run: apt-get update
+
+      - name: Install dependencies
+        run: apt-get install -y git cmake make libc-ares-dev libcurl4-openssl-dev libev-dev libsystemd-dev build-essential
+
+      - name: Clone repository
+        run: git clone https://github.com/aarond10/https_dns_proxy.git
+
+      - name: Change to project directory
+        run: cd https_dns_proxy
+
+      - name: Configure build
+        run: cmake .
+        working-directory: https_dns_proxy
+
+      - name: Build project
+        run: make
+        working-directory: https_dns_proxy
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: https-dns-proxy-binary
+          path: https_dns_proxy/https_dns_proxy
+          retention-days: 1
