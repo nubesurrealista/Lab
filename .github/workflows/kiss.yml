@@ -10,7 +10,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Clone KISS Launcher source
         run: |
-          git clone --branch icons --depth 1 https://github.com/nubesurrealista/KISS.git
+          git clone --depth 1 https://github.com/nubesurrealista/KISS.git
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
