@@ -1,11 +1,9 @@
 name: Build l3afpad (Spanish)
 on: workflow_dispatch
-
 jobs:
   build:
     runs-on: ubuntu-latest
     container: debian:12
-
     steps:
       - name: Update package list
         run: apt-get update
@@ -15,7 +13,8 @@ jobs:
           apt-get install -y \
             git autoconf automake intltool \
             libgtk-3-dev pkg-config build-essential \
-            gettext
+            gettext \
+            libmd4c-dev
 
       - name: Clone l3afpad
         run: git clone https://github.com/nubesurrealista/l3afpad.git
@@ -55,3 +54,4 @@ jobs:
         with:
           name: l3afpad-es-full
           path: l3afpad-es.tar.gz
+          
