@@ -17,7 +17,7 @@ jobs:
             libmd4c-dev
 
       - name: Clone l3afpad
-        run: git clone https://github.com/nubesurrealista/l3afpad.git
+        run: git clone --branch markdown-test https://github.com/nubesurrealista/l3afpad.git
 
       - name: Prepare and build
         run: |
