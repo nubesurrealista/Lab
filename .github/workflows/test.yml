@@ -8,22 +8,25 @@ jobs:
       - name: Setup Environment
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
-          sudo apt update && sudo apt install -y aria2 ffmpeg zip
+          sudo apt update && sudo apt install -y aria2 ffmpeg zip parallel
       - name: Download and Process Media
         run: |
           mkdir -p payload final
-          aria2c --seed-time=0 --dir=./payload "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1
+          aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1
           cd payload
-          FILE=$(find . -type f -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" | head -n 1)
-          if [ -z "$FILE" ]; then exit 1; fi
-          NAME=$(basename "$FILE")
-          BASE="${NAME%.*}"
-          echo "::add-mask::$FILE"
-          echo "::add-mask::$NAME"
-          echo "::add-mask::$BASE"
-          ffmpeg -i "$FILE" -vf "scale=-2:720" -map 0 \
-                 -c:v libx264 -preset fast -crf 23 -threads 2 \
-                 -c:a aac -b:a 128k -c:s copy "../final/${BASE}_720p.mkv" > /dev/null 2>&1
+          find . -type f -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" | while read FILE; do
+            if [ -z "$FILE" ]; then continue; fi
+            NAME=$(basename "$FILE")
+            BASE="${NAME%.*}"
+            echo "::add-mask::$FILE"
+            echo "::add-mask::$NAME"
+            echo "::add-mask::$BASE"
+            ffmpeg -i "$FILE" -vf "scale=-2:720" -map 0 \
+                   -c:v libx264 -preset fast -crf 23 -threads $(nproc) \
+                   -c:a aac -b:a 128k -c:s copy "../final/${BASE}_720p.mkv" > /dev/null 2>&1 &
+          done
+          wait
+          rm -f ./*
           cd ..
       - name: Zip Processed Files
         run: |
@@ -34,4 +37,3 @@ jobs:
         with:
           name: processed-bundle
           path: test.zip
-          
