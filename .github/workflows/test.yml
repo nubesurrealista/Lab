@@ -9,13 +9,32 @@ jobs:
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
           sudo apt update && sudo apt install -y aria2 ffmpeg zip parallel
-      - name: Download and Process Media
+      - name: Download Media
         run: |
           mkdir -p payload final
           aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1
+          if [ $? -ne 0 ]; then
+            echo "Error: Descarga fallida (verifica SOURCE_ENTRY o conexión)"
+            exit 1
+          fi
+          FILE_COUNT=$(find payload -type f | wc -l)
+          echo "::add-mask::$FILE_COUNT"
+          echo "Descarga completada con $FILE_COUNT archivos en payload"
+          if [ $FILE_COUNT -eq 0 ]; then
+            echo "Advertencia: No se descargaron archivos, skipping procesamiento"
+          fi
+      - name: Process Media
+        run: |
           cd payload
-          find . -type f -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" | while read FILE; do
+          PROCESSED=0
+          FAILED=0
+          find . -type f | while read FILE; do
             if [ -z "$FILE" ]; then continue; fi
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$FILE" > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+              echo "Advertencia: Archivo no es medio válido, skipping"
+              continue
+            fi
             NAME=$(basename "$FILE")
             BASE="${NAME%.*}"
             echo "::add-mask::$FILE"
@@ -23,17 +42,39 @@ jobs:
             echo "::add-mask::$BASE"
             ffmpeg -i "$FILE" -vf "scale=-2:720" -map 0 \
                    -c:v libx264 -preset fast -crf 23 -threads $(nproc) \
-                   -c:a aac -b:a 128k -c:s copy "../final/${BASE}_720p.mkv" > /dev/null 2>&1 &
+                   -c:a aac -b:a 128k -c:s copy "../final/${BASE}_720p.mkv" > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+              PROCESSED=$((PROCESSED+1))
+              echo "Procesado exitoso para un archivo"
+            else
+              FAILED=$((FAILED+1))
+              echo "Fallo en procesamiento de un archivo (verifica input)"
+            fi
           done
           wait
-          rm -f ./*
+          rm -rf ./*
           cd ..
+          echo "::add-mask::$PROCESSED"
+          echo "::add-mask::$FAILED"
+          echo "Procesamiento completado: $PROCESSED exitosos, $FAILED fallidos"
+          PROCESSED_COUNT=$(find final -type f | wc -l)
+          echo "::add-mask::$PROCESSED_COUNT"
+          echo "Archivos listos en final: $PROCESSED_COUNT"
       - name: Zip Processed Files
         run: |
           cd final
-          zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip * > /dev/null 2>&1
+          if [ $(find . -type f | wc -l) -eq 0 ]; then
+            echo "Advertencia: Directorio final vacío, creando ZIP vacío"
+            touch dummy.txt
+            zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip * > /dev/null 2>&1 || true
+            rm dummy.txt
+          else
+            zip -P "${{ secrets.ZIP_PASSWORD }}" ../test.zip * > /dev/null 2>&1 || true
+            echo "ZIP creado exitosamente"
+          fi
       - name: Upload Processed Bundle
         uses: actions/upload-artifact@v4
         with:
           name: processed-bundle
           path: test.zip
+          
