@@ -10,7 +10,6 @@ jobs:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          # Librerías esenciales para Snes9x, Genesis, mGBA y PCSX
           apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
 
       - name: Compile Stable Cores
@@ -39,11 +38,10 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Lista de núcleos estables
+          build_core "https://github.com/libretro/libretro-fceumm.git" "fceumm" "."
           build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
           build_core "https://github.com/libretro/mgba.git" "mgba" "."
           build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
-          build_core "https://github.com/libretro/nestopia.git" "nestopia" "libretro"
           build_core "https://github.com/libretro/pcsx_rearmed.git" "pcsx" "." "Makefile.libretro"
           build_core "https://github.com/libretro/libretro-prboom.git" "prboom" "."
 
