@@ -1,13 +1,13 @@
-name: Build RetroArch for Alpine (Extreme Core 2 Duo Optimization)
+name: RetroArch Alpine Extreme Offline
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container: alpine:latest
     steps:
-      - name: Install dependencies (Alpine/Musl)
+      - name: Install System Dependencies
         run: |
           apk update
           apk add build-base clang lld git curl jq tar xz p7zip \
@@ -16,60 +16,69 @@ jobs:
                   libxml2-dev libusb-dev eudev-dev sdl2-dev \
                   libxv-dev mesa-gles
 
-      - name: Get latest RetroArch source
-        run: |
-          LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
-          ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
-          wget "$ASSET_URL" -O source.tar.xz
-          mkdir retroarch && tar -xvf source.tar.xz -C retroarch --strip-components=1
-
-      - name: Configure and build with Clang (Hardware Targeted)
+      - name: Build Optimized RetroArch
         env:
           CC: clang
           CXX: clang++
-          # Optimizaciones específicas para Core 2 Duo y Musl
-          # Usamos -O2 porque -Oz a veces causa stuttering en audio en CPUs viejos
-          CFLAGS: -O2 -march=core2 -mtune=core2 -pipe -flto=thin -fno-stack-protector
-          CXXFLAGS: -O2 -march=core2 -mtune=core2 -pipe -flto=thin -fno-stack-protector
-          LDFLAGS: -fuse-ld=lld -Wl,--gc-sections -flto=thin
+          CFLAGS: -O2 -march=core2 -pipe -flto=thin
+          LDFLAGS: -fuse-ld=lld -flto=thin
         run: |
-          cd retroarch
+          LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
+          ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
+          wget "$ASSET_URL" -O ra_source.tar.xz
+          mkdir ra && tar -xvf ra_source.tar.xz -C ra --strip-components=1
+          cd ra
           
-          # Forzamos XVideo y SDL2, deshabilitamos todo lo que requiere GPU moderna (Vulkan/Wayland)
-          ./configure \
-            --disable-debug \
-            --disable-vulkan \
-            --disable-wayland \
-            --disable-ffmpeg \
-            --disable-qt \
-            --disable-xmb \
-            --disable-ozone \
-            --disable-materialui \
-            --disable-cheevos \
-            --disable-discord \
-            --disable-overlay \
-            --disable-network_video \
-            --disable-videoprocessor \
-            --enable-xvideo \
-            --enable-sdl2 \
-            --enable-alsa \
-            --enable-udev \
-            --enable-kms \
-            --enable-egl \
-            --enable-zlib \
-            --prefix=/usr
-
+          # Flags para rendimiento máximo en Core 2 Duo y bloqueo de red
+          ./configure --disable-debug --disable-vulkan --disable-wayland --disable-qt \
+                      --disable-xmb --disable-ozone --enable-xvideo --enable-sdl2 \
+                      --enable-alsa --enable-udev --disable-netplay --disable-http \
+                      --disable-online_updater --disable-cheevos --prefix=/usr
+          
           make -j$(nproc)
+          strip --strip-unneeded retroarch
 
-      - name: Strip and Compress
+      - name: Build My Cores
+        env:
+          CC: clang
+          CXX: clang++
+          CFLAGS: -O2 -march=core2 -pipe
         run: |
-          strip --strip-unneeded retroarch/retroarch
-          echo "Tamaño final del binario:"
-          du -h retroarch/retroarch
+          mkdir -p final_pack/cores
+          cp ra/retroarch final_pack/
+          
+          build_core() {
+            repo=$1; name=$2; path=$3; makefile=$4; extra_flags=$5
+            echo "--- Compiling $name ---"
+            if [ "$name" = "easyrpg" ]; then
+              git clone --depth=1 --recursive "$repo" "$name"
+            else
+              git clone --depth=1 "$repo" "$name"
+            fi
+            cd "$name"/"$path"
+            if [ -n "$makefile" ]; then make -f "$makefile" -j$(nproc); else make -j$(nproc); fi
+            cp *_libretro.so ../../final_pack/cores/
+            cd ../..
+          }
+
+          # Compilación de tu lista específica
+          build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
+          build_core "https://github.com/libretro/mgba.git" "mgba" "."
+          build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
+          build_core "https://github.com/libretro/nestopia.git" "nestopia" "libretro"
+          build_core "https://github.com/libretro/pcsx_rearmed.git" "pcsx" "." "Makefile.libretro"
+          build_core "https://github.com/libretro/libretro-prboom.git" "prboom" "."
+          build_core "https://github.com/libretro/easyrpg-libretro.git" "easyrpg" "."
+
+      - name: Pack Info Files
+        run: |
+          # Esto permite que los cores tengan nombres reales en el menú sin internet
+          git clone --depth=1 https://github.com/libretro/libretro-super.git
+          mkdir -p final_pack/info
+          cp libretro-super/dist/info/*.info final_pack/info/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: retroarch-alpine-core2duo
-          path: retroarch/retroarch
-          retention-days: 1
+          name: RetroArch-Alpine-FullPack
+          path: final_pack/
