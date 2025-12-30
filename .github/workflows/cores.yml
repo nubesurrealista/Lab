@@ -1,0 +1,54 @@
+name: Build Libretro Cores
+on:
+  workflow_dispatch:
+
+jobs:
+  build-cores:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Install Build Tools
+        run: apk add build-base clang lld git mesa-dev alsa-lib-dev
+
+      - name: Compile All Cores
+        env:
+          CC: clang
+          CXX: clang++
+          CFLAGS: -O2 -march=core2 -pipe
+        run: |
+          DEST_DIR="$(pwd)/cores_output"
+          mkdir -p "$DEST_DIR"
+          
+          build_core() {
+            repo=$1; name=$2; path=$3; makefile=$4
+            echo "--- Compiling $name ---"
+            if [ "$name" = "easyrpg" ]; then
+              git clone --depth=1 --recursive "$repo" "$name"
+            else
+              git clone --depth=1 "$repo" "$name"
+            fi
+            
+            cd "$name"/"$path"
+            if [ -n "$makefile" ]; then 
+              make -f "$makefile" -j$(nproc)
+            else 
+              make -j$(nproc)
+            fi
+            
+            find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
+            cd "$GITHUB_WORKSPACE"
+          }
+
+          build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
+          build_core "https://github.com/libretro/mgba.git" "mgba" "."
+          build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
+          build_core "https://github.com/libretro/nestopia.git" "nestopia" "libretro"
+          build_core "https://github.com/libretro/pcsx_rearmed.git" "pcsx" "." "Makefile.libretro"
+          build_core "https://github.com/libretro/libretro-prboom.git" "prboom" "."
+          build_core "https://github.com/libretro/easyrpg-libretro.git" "easyrpg" "."
+
+      - name: Upload Cores Pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cores-Alpine-Pack
+          path: cores_output/
