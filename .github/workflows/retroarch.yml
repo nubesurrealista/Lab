@@ -1,87 +1,48 @@
----
-name: Build RetroArch for Debian 12 (Clang Optimized)
+name: Build RetroArch for Alpine (Musl Optimized)
 on:
   workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:bookworm
+    container: alpine:latest  # Cambiamos a Alpine
     steps:
-      - name: Install dependencies + Clang
-        run: >
-          apt-get update -y
+      - name: Install dependencies (Alpine style)
+        run: |
+          apk update
+          apk add build-base clang lld git curl jq tar xz p7zip \
+                  mesa-dev alsa-lib-dev freetype-dev libx11-dev \
+                  libxinerama-dev libxxf86vm-dev libxkbcommon-dev \
+                  libxml2-dev libusb-dev udev-dev sdl2-dev \
+                  libxv-dev  # <--- CRUCIAL para el soporte XVideo
 
-          apt-get upgrade -y
-
-          apt-get install -y \
-            curl jq wget tar xz-utils git \
-            build-essential cmake p7zip-full \
-            pkg-config libc6-dev \
-            libsdl2-dev libxml2-dev \
-            x11proto-xext-dev libxxf86vm-dev libxinerama-dev \
-            libudev-dev libusb-1.0-0-dev libasound2-dev \
-            libfreetype6-dev libgbm-dev libdrm-dev libegl1-mesa-dev \
-            python3-dev zlib1g-dev libx11-xcb-dev libxkbcommon-dev libgles2-mesa-dev \
-            clang lld
       - name: Get latest RetroArch source
-        run: >
-          LATEST_RELEASE=$(curl -sL
-          https://api.github.com/repos/libretro/RetroArch/releases/latest)
+        run: |
+          LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
+          ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
+          wget "$ASSET_URL" -O source.tar.xz
+          mkdir retroarch && tar -xvf source.tar.xz -C retroarch --strip-components=1
 
-          ASSET_NAME=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .name')
-
-          if [ -z "$ASSET_NAME" ]; then
-            echo "No source-only tar.xz found in latest release."
-            exit 1
-          fi
-
-          ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name == "'"$ASSET_NAME"'") | .browser_download_url')
-
-          echo "Downloading $ASSET_NAME from $ASSET_URL"
-
-          wget "$ASSET_URL" -O "$ASSET_NAME"
-      - name: Extract source
-        run: >
-          mkdir retroarch
-
-          tar -xvf retroarch-sourceonly-*.tar.xz -C retroarch --strip-components=1
-      - name: Configure and build with Clang (extreme low-end optimization)
+      - name: Configure and build
         env:
           CC: clang
           CXX: clang++
-          CFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
-            -fdata-sections -flto=thin
-          CXXFLAGS: -Oz -march=core2 -pipe -fno-stack-protector -ffunction-sections
-            -fdata-sections -flto=thin
-          LDFLAGS: -fuse-ld=lld -Wl,--gc-sections -flto=thin
-        run: >
+          # Cambiamos -Oz por -O2 o -O3; -Oz a veces rompe el rendimiento en emulación
+          CFLAGS: -O2 -march=core2 -pipe -flto=thin
+          LDFLAGS: -fuse-ld=lld -flto=thin
+        run: |
           cd retroarch
-
+          # Eliminamos --disable-kms (podría servirte luego) 
+          # Añadimos --enable-xvideo
           ./configure \
-            --disable-ffmpeg --disable-vulkan --disable-jack --disable-caca \
-            --disable-pipewire --disable-wayland --disable-slang --disable-qt \
-            --disable-xmb --disable-ozone --disable-materialui \
-            --disable-netplaydiscovery --disable-networkgamepad --disable-command \
-            --disable-translate --disable-discord --disable-mpv --disable-ssa \
-            --disable-network_video --disable-v4l2 --disable-microphone \
-            --disable-cheevos --disable-lua --disable-libretrodb \
-            --disable-overlay --disable-accessibility --disable-bluetooth \
-            --disable-debug --disable-game_ai --disable-steam --disable-mist \
-            --disable-kms --disable-bsv_movie
-          make clean
-
+            --disable-vulkan --disable-ffmpeg --disable-wayland \
+            --disable-qt --disable-xmb --disable-ozone --disable-materialui \
+            --disable-discord --disable-cheevos --disable-overlay \
+            --enable-xvideo --enable-sdl2 --enable-alsa \
+            --disable-debug
           make -j$(nproc)
-      - name: Strip binary (extra)
-        run: |
-          strip --strip-unneeded retroarch/retroarch
-      - name: Show final size
-        run: |
-          echo "Final binary size:"
-          ls -lh retroarch/retroarch
-          du -h retroarch/retroarch
-      - name: Upload artifact
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: retroarch-clang-optimized
+          name: retroarch-alpine-native
           path: retroarch/retroarch
-          retention-days: 1
