@@ -1,93 +1,29 @@
-name: RetroArch Alpine Extreme Offline
+name: Check RetroArch Help Flags
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  check-flags:
     runs-on: ubuntu-latest
     container: alpine:latest
     steps:
-      - name: Install System Dependencies
-        run: |
-          apk update
-          apk add build-base clang lld git curl jq tar xz p7zip \
-                  mesa-dev alsa-lib-dev freetype-dev libx11-dev \
-                  libxinerama-dev libxxf86vm-dev libxkbcommon-dev \
-                  libxml2-dev libusb-dev eudev-dev sdl2-dev \
-                  libxv-dev mesa-gles
+      - name: Install dependencies
+        run: apk add curl jq tar xz
 
-      - name: Build Optimized RetroArch
-        env:
-          CC: clang
-          CXX: clang++
-          CFLAGS: -O2 -march=core2 -pipe -flto=thin
-          LDFLAGS: -fuse-ld=lld -flto=thin
+      - name: Get Source and Run Help
         run: |
+          # Obtener la última versión
           LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
           ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
           wget "$ASSET_URL" -O ra_source.tar.xz
           mkdir ra && tar -xvf ra_source.tar.xz -C ra --strip-components=1
+          
           cd ra
+          # Ejecutar el help y guardarlo en un archivo
+          ./configure --help > ../retroarch_flags_help.txt
           
-          # Flags corregidas para versión 1.22.x
-          ./configure --prefix=/usr \
-                      --disable-debug \
-                      --disable-vulkan \
-                      --disable-wayland \
-                      --disable-qt \
-                      --disable-xmb \
-                      --disable-ozone \
-                      --enable-xvideo \
-                      --enable-sdl2 \
-                      --enable-alsa \
-                      --enable-udev \
-                      --disable-netgame \
-                      --disable-network_buildbot \
-                      --disable-discord \
-                      --disable-cheevos
-          
-          make -j$(nproc)
-          strip --strip-unneeded retroarch
-
-      - name: Build My Cores
-        env:
-          CC: clang
-          CXX: clang++
-          CFLAGS: -O2 -march=core2 -pipe
-        run: |
-          mkdir -p final_pack/cores
-          cp ra/retroarch final_pack/
-          
-          build_core() {
-            repo=$1; name=$2; path=$3; makefile=$4
-            echo "--- Compiling $name ---"
-            if [ "$name" = "easyrpg" ]; then
-              git clone --depth=1 --recursive "$repo" "$name"
-            else
-              git clone --depth=1 "$repo" "$name"
-            fi
-            cd "$name"/"$path"
-            if [ -n "$makefile" ]; then make -f "$makefile" -j$(nproc); else make -j$(nproc); fi
-            cp *_libretro.so ../../final_pack/cores/
-            cd ../..
-          }
-
-          # Tu lista específica
-          build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
-          build_core "https://github.com/libretro/mgba.git" "mgba" "."
-          build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
-          build_core "https://github.com/libretro/nestopia.git" "nestopia" "libretro"
-          build_core "https://github.com/libretro/pcsx_rearmed.git" "pcsx" "." "Makefile.libretro"
-          build_core "https://github.com/libretro/libretro-prboom.git" "prboom" "."
-          build_core "https://github.com/libretro/easyrpg-libretro.git" "easyrpg" "."
-
-      - name: Pack Info Files
-        run: |
-          git clone --depth=1 https://github.com/libretro/libretro-super.git
-          mkdir -p final_pack/info
-          cp libretro-super/dist/info/*.info final_pack/info/
-
-      - name: Upload Artifact
+      - name: Upload Flags Help
         uses: actions/upload-artifact@v4
         with:
-          name: Retro
+          name: retroarch-v1.22.2-help
+          path: retroarch_flags_help.txt
