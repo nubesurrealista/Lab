@@ -29,11 +29,22 @@ jobs:
           mkdir ra && tar -xvf ra_source.tar.xz -C ra --strip-components=1
           cd ra
           
-          # Flags para rendimiento máximo en Core 2 Duo y bloqueo de red
-          ./configure --disable-debug --disable-vulkan --disable-wayland --disable-qt \
-                      --disable-xmb --disable-ozone --enable-xvideo --enable-sdl2 \
-                      --enable-alsa --enable-udev --disable-netplay --disable-http \
-                      --disable-online_updater --disable-cheevos --prefix=/usr
+          # Flags corregidas para versión 1.22.x
+          ./configure --prefix=/usr \
+                      --disable-debug \
+                      --disable-vulkan \
+                      --disable-wayland \
+                      --disable-qt \
+                      --disable-xmb \
+                      --disable-ozone \
+                      --enable-xvideo \
+                      --enable-sdl2 \
+                      --enable-alsa \
+                      --enable-udev \
+                      --disable-netgame \
+                      --disable-network_buildbot \
+                      --disable-discord \
+                      --disable-cheevos
           
           make -j$(nproc)
           strip --strip-unneeded retroarch
@@ -48,7 +59,7 @@ jobs:
           cp ra/retroarch final_pack/
           
           build_core() {
-            repo=$1; name=$2; path=$3; makefile=$4; extra_flags=$5
+            repo=$1; name=$2; path=$3; makefile=$4
             echo "--- Compiling $name ---"
             if [ "$name" = "easyrpg" ]; then
               git clone --depth=1 --recursive "$repo" "$name"
@@ -61,7 +72,7 @@ jobs:
             cd ../..
           }
 
-          # Compilación de tu lista específica
+          # Tu lista específica
           build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
           build_core "https://github.com/libretro/mgba.git" "mgba" "."
           build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
@@ -72,7 +83,6 @@ jobs:
 
       - name: Pack Info Files
         run: |
-          # Esto permite que los cores tengan nombres reales en el menú sin internet
           git clone --depth=1 https://github.com/libretro/libretro-super.git
           mkdir -p final_pack/info
           cp libretro-super/dist/info/*.info final_pack/info/
@@ -80,5 +90,4 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RetroArch-Alpine-FullPack
-          path: final_pack/
+          name: Retro
