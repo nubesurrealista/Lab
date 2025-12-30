@@ -1,4 +1,4 @@
-name: Build Libretro Cores
+name: Build Libretro Cores (Stable Set)
 on:
   workflow_dispatch:
 
@@ -10,61 +10,45 @@ jobs:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          # Dependencias críticas para compilación y librerías de soporte (zlib, png, expat)
-          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev expat-dev
+          # Librerías esenciales para Snes9x, Genesis, mGBA y PCSX
+          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
 
-      - name: Compile All Cores
+      - name: Compile Stable Cores
         env:
           CC: clang
           CXX: clang++
-          # Optimización para Core 2 Duo
           CFLAGS: -O2 -march=core2 -pipe
           CXXFLAGS: -O2 -march=core2 -pipe
         run: |
-          # Definir ruta absoluta para la salida de los archivos .so
           DEST_DIR="$(pwd)/cores_output"
           mkdir -p "$DEST_DIR"
           
           build_core() {
             repo=$1; name=$2; path=$3; makefile=$4
             echo "--- Compiling $name ---"
-            
-            # EasyRPG requiere clonado recursivo para sus sub-librerías (liblcf, etc)
-            if [ "$name" = "easyrpg" ]; then
-              git clone --depth=1 --recursive "$repo" "$name"
-            else
-              git clone --depth=1 "$repo" "$name"
-            fi
+            git clone --depth=1 "$repo" "$name"
             
             cd "$name"/"$path"
-            
-            # Ejecutar compilación según si existe un Makefile específico
             if [ -n "$makefile" ]; then 
               make -f "$makefile" -j$(nproc)
             else 
               make -j$(nproc)
             fi
             
-            # Buscar el archivo compilado y moverlo a la carpeta de salida
             find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
-            
-            # Regresar a la raíz para el siguiente núcleo
             cd "$GITHUB_WORKSPACE"
           }
 
-          # Lista de núcleos con sus rutas de Makefile correctas
+          # Lista de núcleos estables
           build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
           build_core "https://github.com/libretro/mgba.git" "mgba" "."
           build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
           build_core "https://github.com/libretro/nestopia.git" "nestopia" "libretro"
           build_core "https://github.com/libretro/pcsx_rearmed.git" "pcsx" "." "Makefile.libretro"
           build_core "https://github.com/libretro/libretro-prboom.git" "prboom" "."
-          
-          # Ruta corregida para EasyRPG (builds/libretro)
-          build_core "https://github.com/libretro/easyrpg-libretro.git" "easyrpg" "builds/libretro"
 
       - name: Upload Cores Pack
         uses: actions/upload-artifact@v4
         with:
-          name: Cores-Alpine-Pack
+          name: Cores-Alpine-Stable-Pack
           path: cores_output/
