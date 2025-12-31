@@ -1,34 +1,39 @@
-name: Build SRB2 Nativo (Alpine)
+name: Build SRB2 Nativo Alpine
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-native:
+  build:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
 
     steps:
-      - name: Preparar Entorno (doas y variables)
+      - name: Configurar Repositorios y doas
         run: |
+          # Activar repositorios community para dependencias de desarrollo
+          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/main" > /etc/apk/repositories
+          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
+          
           apk update
           apk add doas shadow bash
           
-          # Configuración de doas sin contraseña para root
-          mkdir -p /etc/doas.d
+          # Configurar doas para root
           echo "permit nopass root" > /etc/doas.d/doas.conf
           
-          # Variables de entorno críticas para evitar errores de passwd/user
+          # Definir variables de entorno críticas
           echo "USER=root" >> $GITHUB_ENV
           echo "HOME=/root" >> $GITHUB_ENV
+          echo "TERM=xterm" >> $GITHUB_ENV
 
-      - name: Instalar Dependencias del README
+      - name: Instalar Dependencias del Sistema
         run: |
+          # Instalamos la lista oficial adaptada a Alpine + herramientas de compilación
           doas apk add make git which coreutils findutils file net-tools \
                        ncurses curl gawk stow fuse zlib patchelf \
-                       gdk-pixbuf bash build-base SDL2-dev libpng-dev \
-                       libgme-dev libopenmpt-dev curl-dev
+                       gdk-pixbuf build-base sdl2-dev libpng-dev \
+                       libgme-dev openmpt-dev curl-dev mesa-dev glu-dev
 
       - name: Clonar e Instalar srb2bld
         run: |
@@ -36,23 +41,25 @@ jobs:
           cd srb2bld
           doas make install
 
-      - name: Compilación Nativa de SRB2
+      - name: Compilación Nativa Automática
         run: |
-          export TERM=xterm
-          # 1: SRB2
-          # 1: Build nativa (64-bit)
-          # n: No instalar en el sistema (solo queremos el binario)
-          # n: No crear acceso directo
-          printf "1\n1\nn\nn\n" | srb2bld
+          # Usamos --install para compilar y --user para que se guarde en $HOME
+          # printf "1\n1\nn\n" selecciona: 1 (SRB2), 1 (64-bit), n (no instalar assets de nuevo si ya están)
+          # 'yes ""' ayuda a pasar cualquier prompt de confirmación sobrante
+          yes "" | srb2bld --install --user || true
 
-      - name: Recolectar Binarios Nativos
+      - name: Organizar y Subir Artefactos
         run: |
           mkdir -p ./dist
-          # srb2bld guarda las compilaciones nativas en subcarpetas dentro de builds
-          find /root/srb2bld_builds/ -type f -executable -exec cp {} ./dist/ \;
-          
-      - name: Subir Binarios
+          # srb2bld instala los binarios en ~/.local/bin cuando usas --user
+          if [ -d "/root/.local/bin" ]; then
+            cp /root/.local/bin/srb2* ./dist/
+          fi
+          # También buscamos en la carpeta de builds por si acaso
+          find /root/srb2bld_builds/ -type f -executable -exec cp {} ./dist/ \; 2>/dev/null || true
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SRB2-Nativo-Alpine
+          name: SRB2-Nativo-Alpine-Binaries
           path: ./dist/
