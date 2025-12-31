@@ -44,10 +44,10 @@ jobs:
           cat <<EOF > org.fluentflame.Reader.yml
           app-id: org.fluentflame.Reader
           runtime: org.freedesktop.Platform
-          runtime-version: '23.08'
+          runtime-version: '24.08'
           sdk: org.freedesktop.Sdk
           base: org.electronjs.Electron2.BaseApp
-          base-version: '23.08'
+          base-version: '24.08'
           sdk-extensions:
             - org.freedesktop.Sdk.Extension.node20
           command: start-fluent-reader
@@ -59,7 +59,10 @@ jobs:
             - --socket=pulseaudio
             - --share=network
             - --talk-name=org.freedesktop.Notifications
+            - --talk-name=org.freedesktop.portal.Desktop
+            - --talk-name=org.freedesktop.portal.Documents
             - --filesystem=home
+            - --env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons
           modules:
             - name: fluentflame-reader
               buildsystem: simple
@@ -81,12 +84,6 @@ jobs:
                     - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
           EOF
 
-      - name: "Setup Flatpak Environment"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
       - name: "Build Flatpak Bundle"
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
@@ -94,7 +91,6 @@ jobs:
           manifest-path: org.fluentflame.Reader.yml
           cache: true
           restore-cache: true
-          branch: master
           arch: x86_64
           repository-url: https://flathub.org/repo/flathub.flatpakrepo
           repository-name: flathub
