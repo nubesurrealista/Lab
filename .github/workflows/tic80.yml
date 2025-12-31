@@ -41,7 +41,8 @@ jobs:
         run: |
           mkdir -p TIC-80/build
           cd TIC-80/build
-          cmake -DBUILD_PRO=On \
+          cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+                -DBUILD_PRO=On \
                 -DBUILD_SDLGPU=On \
                 -DBUILD_WITH_ALL=On \
                 -DCMAKE_BUILD_TYPE=Release \
