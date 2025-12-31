@@ -1,59 +1,58 @@
-name: Build SRB2 on Alpine Linux
+name: Build SRB2 Nativo (Alpine)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-alpine:
+  build-native:
     runs-on: ubuntu-latest
-    # Usamos el contenedor oficial de Alpine para asegurar el entorno musl
     container:
       image: alpine:latest
 
     steps:
-      - name: Checkout del repositorio (opcional si tienes scripts propios)
-        uses: actions/checkout@v4
-
-      - name: Configurar doas y dependencias del sistema
+      - name: Preparar Entorno (doas y variables)
         run: |
-          # 1. Actualizar repositorios e instalar doas + dependencias mínimas
           apk update
-          apk add doas
+          apk add doas shadow bash
           
-          # 2. Configurar doas para que no pida contraseña al usuario root (el del container)
+          # Configuración de doas sin contraseña para root
+          mkdir -p /etc/doas.d
           echo "permit nopass root" > /etc/doas.d/doas.conf
           
-          # 3. Instalar las dependencias exactas que pide el README usando doas
-          doas apk add make git which coreutils findutils file net-tools shadow \
-                       ncurses curl gawk docker stow fuse zlib patchelf \
-                       gdk-pixbuf flatpak flatpak-builder bash
+          # Variables de entorno críticas para evitar errores de passwd/user
+          echo "USER=root" >> $GITHUB_ENV
+          echo "HOME=/root" >> $GITHUB_ENV
 
-      - name: Clonar e instalar srb2bld
+      - name: Instalar Dependencias del README
+        run: |
+          doas apk add make git which coreutils findutils file net-tools \
+                       ncurses curl gawk stow fuse zlib patchelf \
+                       gdk-pixbuf bash build-base SDL2-dev libpng-dev \
+                       libgme-dev libopenmpt-dev curl-dev
+
+      - name: Clonar e Instalar srb2bld
         run: |
           git clone https://github.com/Bijman/srb2bld.git
           cd srb2bld
-          # Instalación global del script usando doas
           doas make install
 
-      - name: Ejecutar compilación de SRB2
+      - name: Compilación Nativa de SRB2
         run: |
           export TERM=xterm
-          # Ejecutamos srb2bld. 
-          # Al estar en Alpine, srb2bld usará doas/apk internamente si es necesario.
-          # Nota: He añadido "n" al final para evitar prompts de actualización de iconos si no hay entorno gráfico.
-          printf "1\n\n\n\nn\n" | srb2bld
+          # 1: SRB2
+          # 1: Build nativa (64-bit)
+          # n: No instalar en el sistema (solo queremos el binario)
+          # n: No crear acceso directo
+          printf "1\n1\nn\nn\n" | srb2bld
 
-      - name: Localizar y exportar binarios
+      - name: Recolectar Binarios Nativos
         run: |
-          mkdir -p output
-          # Copiamos los binarios generados que srb2bld suele poner en /usr/local/bin 
-          # o en la carpeta de compilación.
-          find /usr/local/bin -name "srb2*" -exec cp {} ./output/ \; || true
-          # Si srb2bld generó una carpeta en el HOME, la incluimos
-          cp -r ~/srb2bld_builds/* ./output/ 2>/dev/null || true
-
-      - name: Subir binarios como artefacto
+          mkdir -p ./dist
+          # srb2bld guarda las compilaciones nativas en subcarpetas dentro de builds
+          find /root/srb2bld_builds/ -type f -executable -exec cp {} ./dist/ \;
+          
+      - name: Subir Binarios
         uses: actions/upload-artifact@v4
         with:
-          name: SRB2-Alpine-Package
-          path: output/
+          name: SRB2-Nativo-Alpine
+          path: ./dist/
