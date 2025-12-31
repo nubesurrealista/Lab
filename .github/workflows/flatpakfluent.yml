@@ -1,0 +1,92 @@
+name: "Manual Build: Universal Flatpak"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_flatpak:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout Packaging Repo"
+        uses: "actions/checkout@v5"
+
+      - name: "Clone Fluent Flame Source"
+        run: |
+          git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
+
+      - name: "Prepare Metainfo and Manifest"
+        run: |
+          cat <<EOF > org.fluentflame.Reader.desktop
+          [Desktop Entry]
+          Name=Fluent Flame
+          Comment=A modern desktop RSS reader
+          Exec=start-fluent-reader
+          Icon=org.fluentflame.Reader
+          Type=Application
+          Categories=Network;News;
+          Terminal=false
+          EOF
+
+          cat <<EOF > org.fluentflame.Reader.appdata.xml
+          <?xml version="1.0" encoding="UTF-8"?>
+          <component type="desktop-application">
+            <id>org.fluentflame.Reader</id>
+            <metadata_license>CC0-1.0</metadata_license>
+            <project_license>BSD-3-Clause</project_license>
+            <name>Fluent Flame</name>
+            <summary>Modern RSS reader</summary>
+            <description>
+              <p>A modern desktop RSS reader given new life.</p>
+            </description>
+          </component>
+          EOF
+
+          cat <<EOF > org.fluentflame.Reader.yml
+          app-id: org.fluentflame.Reader
+          runtime: org.freedesktop.Platform
+          runtime-version: '23.08'
+          sdk: org.freedesktop.Sdk
+          base: org.electronjs.Electron2.BaseApp
+          base-version: '23.08'
+          sdk-extensions:
+            - org.freedesktop.Sdk.Extension.node20
+          command: start-fluent-reader
+          finish-args:
+            - --share=ipc
+            - --socket=wayland
+            - --socket=fallback-x11
+            - --device=dri
+            - --socket=pulseaudio
+            - --share=network
+            - --talk-name=org.freedesktop.Notifications
+            - --filesystem=home
+          modules:
+            - name: fluentflame-reader
+              buildsystem: simple
+              build-options:
+                append-path: /usr/lib/sdk/node20/bin
+              build-commands:
+                - npm ci
+                - npm run build
+                - npx electron-builder --linux --dir -p never --x64
+                - cp -r dist/linux-unpacked /app/fluentflame
+                - install -Dm 755 start-fluent-reader.sh /app/bin/start-fluent-reader
+                - install -Dm 644 source-code/public/logo.png /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png || true
+              sources:
+                - type: dir
+                  path: source-code
+                - type: script
+                  dest-filename: start-fluent-reader.sh
+                  commands:
+                    - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
+          EOF
+
+      - name: "Install Flatpak Builder"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak-builder
+
+      - name: "Build Flatpak Bundle"
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: FluentFlame-Universal.flatpak
