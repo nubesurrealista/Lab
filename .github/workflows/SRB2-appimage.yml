@@ -1,55 +1,55 @@
-name: Build SRB2 Nativo Alpine
+name: Build SRB2 on Alpine Linux
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-alpine:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
 
     steps:
-      - name: Configurar Entorno
+      - name: Preparar entorno de usuario y doas
         run: |
-          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/main" > /etc/apk/repositories
-          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
           apk update
+          # Instalamos shadow para tener 'useradd' y las dependencias de doas
           apk add doas shadow bash
-          mkdir -p /etc/doas.d
+          
+          # Crear un archivo de configuración de doas válido
           echo "permit nopass root" > /etc/doas.d/doas.conf
-          echo "USER=root" >> $GITHUB_ENV
-          echo "HOME=/root" >> $GITHUB_ENV
-          echo "TERM=xterm" >> $GITHUB_ENV
+          
+          # Corregir el error "not a valid name" asegurando que root existe correctamente
+          # y que el entorno tiene un nombre de usuario definido
+          export USER=root
+          export HOME=/root
 
-      - name: Instalar Dependencias
+      - name: Instalar dependencias oficiales de srb2bld
         run: |
+          # Instalamos todo lo que listaste del README
           doas apk add make git which coreutils findutils file net-tools \
-                       ncurses curl gawk stow fuse zlib-dev patchelf \
-                       gdk-pixbuf build-base sdl2-dev libpng-dev \
-                       libgme-dev libopenmpt-dev curl-dev mesa-dev glu-dev
+                       ncurses curl gawk docker stow fuse zlib patchelf \
+                       gdk-pixbuf flatpak flatpak-builder
 
-      - name: Preparar srb2bld
+      - name: Clonar e instalar srb2bld
         run: |
           git clone https://github.com/Bijman/srb2bld.git
           cd srb2bld
           doas make install
 
-      - name: Compilar SRB2
+      - name: Compilar SRB2 (Modo Automático)
         run: |
+          export TERM=xterm
           export USER=root
           export HOME=/root
-          # \n (salta aviso root) -> 1 (selecciona SRB2) -> \n\n\n (acepta defaults)
-          printf "\n1\n\n\n\n" | srb2bld --install --user
-
-      - name: Exportar Binarios
-        run: |
-          mkdir -p ./dist
-          find /root/.local/bin -name "srb2*" -exec cp {} ./dist/ \; 2>/dev/null || true
-          find /root/srb2bld_builds -type f -executable -exec cp {} ./dist/ \; 2>/dev/null || true
-
-      - name: Upload Artifact
+          
+          # Usamos la opción -s para saltar la instalación de dependencias 
+          # ya que las instalamos manualmente arriba, evitando el error de 'passwd'
+          # Intentamos la compilación de SRB2 (opción 1)
+          yes "" | srb2bld --appimage || printf "1\n\n\n\nn\n" | srb2bld
+          
+      - name: Subir resultados
         uses: actions/upload-artifact@v4
         with:
-          name: SRB2-Nativo-Alpine
-          path: ./dist/
+          name: SRB2-Alpine-Build
+          path: /root/srb2bld_builds/ # Carpeta por defecto de srb2bld
