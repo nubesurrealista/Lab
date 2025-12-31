@@ -22,7 +22,8 @@ jobs:
           npm install
           npm run build
           npm run package-deb
-          cp dist/*.deb ../package.deb
+          # Buscamos el .deb donde sea que haya quedado y lo movemos a la raiz
+          find . -name "*.deb" -exec cp {} ../package.deb \;
           cd ..
 
       - name: Create Flatpak Manifest
@@ -49,9 +50,11 @@ jobs:
                 - tar xf data.tar.*
                 - cp -r usr/* /app/
                 - mkdir -p /app/bin
+                # Enlazamos el binario para que Flatpak lo encuentre
                 - ln -s /app/lib/fluentflame-reader/fluentflame-reader /app/bin/fluentflame-reader
                 - mkdir -p /app/share/icons/hicolor/512x512/apps/
-                - cp /app/share/icons/hicolor/0x0/apps/fluentflame-reader.png /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png || true
+                # Copiamos el icono original al nombre del App-ID para que el menu lo reconozca
+                - find /app/share/icons -name "fluentflame-reader.png" -exec cp {} /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png \;
               sources:
                 - type: file
                   path: package.deb
