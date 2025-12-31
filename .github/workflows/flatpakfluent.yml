@@ -1,4 +1,4 @@
-name: "Manual Build: Universal Flatpak"
+name: "Flatpak fluent Build"
 
 on:
   workflow_dispatch:
@@ -90,3 +90,14 @@ jobs:
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: FluentFlame-Universal.flatpak
+          manifest: org.fluentflame.Reader.yml
+          cache: true
+          restore-cache: true
+          branch: master
+          arch: x86_64
+
+      - name: "Upload Flatpak Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluentFlame-Flatpak-Bundle
+          path: FluentFlame-Universal.flatpak
