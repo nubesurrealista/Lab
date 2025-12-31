@@ -12,47 +12,27 @@ jobs:
       - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
+          sudo apt-get install -y flatpak flatpak-builder binutils
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          flatpak update --user --appstream
 
-      - name: Prepare Source and Manifest
+      - name: Build Official Debian Package
         run: |
           git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
-          
-          cat <<EOF > org.fluentflame.Reader.desktop
-          [Desktop Entry]
-          Name=Fluent Flame
-          Comment=A modern desktop RSS reader
-          Exec=start-fluent-reader
-          Icon=org.fluentflame.Reader
-          Type=Application
-          Categories=Network;News;
-          Terminal=false
-          EOF
+          cd source-code
+          npm install
+          npm run build
+          npm run package-deb
+          cp dist/*.deb ../package.deb
+          cd ..
 
-          cat <<EOF > org.fluentflame.Reader.appdata.xml
-          <?xml version="1.0" encoding="UTF-8"?>
-          <component type="desktop-application">
-            <id>org.fluentflame.Reader</id>
-            <metadata_license>CC0-1.0</metadata_license>
-            <project_license>BSD-3-Clause</project_license>
-            <name>Fluent Flame</name>
-            <summary>Modern RSS reader</summary>
-            <description>
-              <p>A modern desktop RSS reader given new life.</p>
-            </description>
-          </component>
-          EOF
-
+      - name: Create Flatpak Manifest
+        run: |
           cat <<EOF > org.fluentflame.Reader.yml
           app-id: org.fluentflame.Reader
           runtime: org.freedesktop.Platform
           runtime-version: '24.08'
           sdk: org.freedesktop.Sdk
-          sdk-extensions:
-            - org.freedesktop.Sdk.Extension.node20
-          command: start-fluent-reader
+          command: fluentflame-reader
           finish-args:
             - --share=ipc
             - --socket=wayland
@@ -60,45 +40,30 @@ jobs:
             - --device=dri
             - --socket=pulseaudio
             - --share=network
-            - --talk-name=org.freedesktop.Notifications
-            - --talk-name=org.freedesktop.portal.Desktop
-            - --talk-name=org.freedesktop.portal.Documents
             - --filesystem=home
-            - --env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons
           modules:
-            - name: fluentflame-reader
+            - name: reader-deb-extractor
               buildsystem: simple
-              build-options:
-                append-path: /usr/lib/sdk/node20/bin
-                build-args:
-                  - --share=network
               build-commands:
-                - npm install
-                - npm run build
-                - npx electron-builder --linux --dir -p never --x64
-                - mkdir -p /app/fluentflame
-                # Listamos para depurar en el log si vuelve a fallar
-                - ls -R dist/
-                # Copiamos usando un patrón que busca cualquier carpeta que termine en unpacked
-                - cp -r dist/linux*-unpacked/* /app/fluentflame/
-                - install -Dm 755 start-fluent-reader.sh /app/bin/start-fluent-reader
-                - install -Dm 644 source-code/public/logo.png /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png || true
+                - ar x package.deb
+                - tar xf data.tar.*
+                - cp -r usr/* /app/
+                - mkdir -p /app/bin
+                - ln -s /app/lib/fluentflame-reader/fluentflame-reader /app/bin/fluentflame-reader
+                - mkdir -p /app/share/icons/hicolor/512x512/apps/
+                - cp /app/share/icons/hicolor/0x0/apps/fluentflame-reader.png /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png || true
               sources:
-                - type: dir
-                  path: source-code
-                - type: script
-                  dest-filename: start-fluent-reader.sh
-                  commands:
-                    - exec /app/fluentflame/fluentflame-reader --no-sandbox --ozone-platform-hint=auto "$@"
+                - type: file
+                  path: package.deb
           EOF
 
       - name: Build Flatpak Bundle
         run: |
-          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
-          flatpak build-bundle repo FluentFlame-Universal.flatpak org.fluentflame.Reader
+          flatpak-builder --user --disable-rofiles-fuse --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
+          flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FluentFlame-Flatpak-Bundle
-          path: FluentFlame-Universal.flatpak
+          name: FluentFlame-Final-Bundle
+          path: FluentFlame-Personal.flatpak
