@@ -1,51 +1,59 @@
-name: Build SRB2 AppImage
+name: Build SRB2 on Alpine Linux
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-srb2:
+  build-alpine:
     runs-on: ubuntu-latest
+    # Usamos el contenedor oficial de Alpine para asegurar el entorno musl
+    container:
+      image: alpine:latest
 
     steps:
-      - name: Instalar dependencias
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            make git debianutils coreutils findutils file \
-            ncurses-bin curl gawk stow \
-            libfuse2 zlib1g patchelf libgdk-pixbuf2.0-bin \
-            flatpak flatpak-builder
+      - name: Checkout del repositorio (opcional si tienes scripts propios)
+        uses: actions/checkout@v4
 
-      - name: Verificar Docker
+      - name: Configurar doas y dependencias del sistema
         run: |
-          docker version
+          # 1. Actualizar repositorios e instalar doas + dependencias mínimas
+          apk update
+          apk add doas
+          
+          # 2. Configurar doas para que no pida contraseña al usuario root (el del container)
+          echo "permit nopass root" > /etc/doas.d/doas.conf
+          
+          # 3. Instalar las dependencias exactas que pide el README usando doas
+          doas apk add make git which coreutils findutils file net-tools shadow \
+                       ncurses curl gawk docker stow fuse zlib patchelf \
+                       gdk-pixbuf flatpak flatpak-builder bash
 
       - name: Clonar e instalar srb2bld
         run: |
           git clone https://github.com/Bijman/srb2bld.git
           cd srb2bld
-          sudo make install
+          # Instalación global del script usando doas
+          doas make install
 
-      - name: Verificar instalación de srb2bld
+      - name: Ejecutar compilación de SRB2
         run: |
           export TERM=xterm
-          srb2bld --help
+          # Ejecutamos srb2bld. 
+          # Al estar en Alpine, srb2bld usará doas/apk internamente si es necesario.
+          # Nota: He añadido "n" al final para evitar prompts de actualización de iconos si no hay entorno gráfico.
+          printf "1\n\n\n\nn\n" | srb2bld
 
-      - name: Construir AppImage de SRB2 (todo predeterminado)
+      - name: Localizar y exportar binarios
         run: |
-          export TERM=xterm
-          printf "1\n\n\n\n" | srb2bld --appimage
+          mkdir -p output
+          # Copiamos los binarios generados que srb2bld suele poner en /usr/local/bin 
+          # o en la carpeta de compilación.
+          find /usr/local/bin -name "srb2*" -exec cp {} ./output/ \; || true
+          # Si srb2bld generó una carpeta en el HOME, la incluimos
+          cp -r ~/srb2bld_builds/* ./output/ 2>/dev/null || true
 
-      - name: Buscar AppImage generado
-        id: find-appimage
-        run: |
-          APPIMAGE_PATH=$(find $HOME -name "*.AppImage" | head -n1)
-          echo "APPIMAGE_PATH=$APPIMAGE_PATH" >> $GITHUB_ENV
-          echo "AppImage generado: $APPIMAGE_PATH"
-
-      - name: Subir artefacto AppImage
+      - name: Subir binarios como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: SRB2-AppImage
-          path: ${{ env.APPIMAGE_PATH }}
+          name: SRB2-Alpine-Package
+          path: output/
