@@ -39,8 +39,8 @@ jobs:
         run: |
           export USER=root
           export HOME=/root
-          addgroup -S docker || true
-          printf "\n1\n1\nn\nn\n" | srb2bld --install --user
+          # \n (salta aviso root) -> 1 (selecciona SRB2) -> \n\n\n (acepta defaults)
+          printf "\n1\n\n\n\n" | srb2bld --install --user
 
       - name: Exportar Binarios
         run: |
