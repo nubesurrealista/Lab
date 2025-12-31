@@ -1,3 +1,4 @@
+
 name: Manual Build Universal Flatpak
 
 on:
@@ -76,7 +77,9 @@ jobs:
                 - npm install
                 - npm run build
                 - npx electron-builder --linux --dir -p never --x64
-                - cp -r dist/linux-unpacked /app/fluentflame
+                - mkdir -p /app/fluentflame
+                # Copiamos el contenido de la carpeta que genera electron-builder
+                - cp -r dist/linux-unpacked/* /app/fluentflame/
                 - install -Dm 755 start-fluent-reader.sh /app/bin/start-fluent-reader
                 - install -Dm 644 source-code/public/logo.png /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png || true
               sources:
