@@ -40,11 +40,8 @@ jobs:
 
       - name: Compilar SRB2 Nativo
         run: |
-          # Usamos printf para enviar:
-          # 1 -> Seleccionar SRB2
-          # 1 -> Seleccionar compilación nativa (si el script pregunta arquitectura)
-          # \n... -> Enters para aceptar los assets y el resto de opciones por defecto
-          su builder -c 'printf "1\n1\n\n\n\n" | srb2bld --install --user'
+          # Pasamos TERM=xterm dentro del comando su para que ncurses no falle
+          su builder -c 'export TERM=xterm; printf "1\n1\n\n\n\n" | srb2bld --install --user'
 
       - name: Exportar Binarios
         run: |
