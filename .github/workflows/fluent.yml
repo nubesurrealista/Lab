@@ -19,6 +19,7 @@ jobs:
       - name: Prepare Source and Manifest
         run: |
           git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
+          
           cat <<EOF > org.fluentflame.Reader.desktop
           [Desktop Entry]
           Name=Fluent Flame
@@ -29,6 +30,7 @@ jobs:
           Categories=Network;News;
           Terminal=false
           EOF
+
           cat <<EOF > org.fluentflame.Reader.appdata.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <component type="desktop-application">
@@ -42,13 +44,12 @@ jobs:
             </description>
           </component>
           EOF
+
           cat <<EOF > org.fluentflame.Reader.yml
           app-id: org.fluentflame.Reader
           runtime: org.freedesktop.Platform
           runtime-version: '24.08'
           sdk: org.freedesktop.Sdk
-          base: org.electronjs.Electron2.BaseApp
-          base-version: '24.08'
           sdk-extensions:
             - org.freedesktop.Sdk.Extension.node20
           command: start-fluent-reader
@@ -68,12 +69,12 @@ jobs:
             - name: fluentflame-reader
               buildsystem: simple
               build-options:
-                append-path: /usr/lib/sdk/node20/bin:node_modules/.bin
-                env:
-                  NPM_CONFIG_LOGLEVEL: info
+                append-path: /usr/lib/sdk/node20/bin
+                build-args:
+                  - --share=network
               build-commands:
-                - npm install --prefer-offline --no-audit
-                - ./node_modules/.bin/webpack --config ./webpack.config.js
+                - npm install
+                - npm run build
                 - npx electron-builder --linux --dir -p never --x64
                 - cp -r dist/linux-unpacked /app/fluentflame
                 - install -Dm 755 start-fluent-reader.sh /app/bin/start-fluent-reader
@@ -84,7 +85,7 @@ jobs:
                 - type: script
                   dest-filename: start-fluent-reader.sh
                   commands:
-                    - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
+                    - exec /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
           EOF
 
       - name: Build Flatpak Bundle
