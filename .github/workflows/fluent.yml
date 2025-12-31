@@ -50,12 +50,10 @@ jobs:
                 - if [ -d opt ]; then cp -r opt/* /app/; fi
                 - if [ -d usr ]; then cp -r usr/* /app/; fi
                 
-                # Limpieza de archivos pesados innecesarios
                 - rm -rf /app/share/doc /app/share/man /app/share/info
                 - find /app -name "*.a" -delete
                 - find /app -name "*.h" -delete
                 
-                # Strip binarios para reducir tamaño significativamente
                 - find /app -type f -name "*.so*" -exec strip --strip-unneeded {} + || true
                 - find /app -type f -executable -exec strip --strip-unneeded {} + || true
 
@@ -76,8 +74,7 @@ jobs:
 
       - name: Build Flatpak Bundle
         run: |
-          # --no-debuginfo evita generar megabytes de datos de depuración extra
-          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --no-debuginfo --repo=repo build_dir org.fluentflame.Reader.yml
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
           flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
 
       - name: Upload Artifact
