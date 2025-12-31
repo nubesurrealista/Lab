@@ -1,54 +1,65 @@
----
-name: Build Hyfetch on Debian 12
+name: Build Hyfetch on Alpine
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:12
+    container: alpine:latest
     env:
       HOME: /root
-      DOCKER_CONFIG: /tmp/docker-config
     steps:
-      - name: Install system dependencies
-        shell: bash
-        run: >
-          mkdir -p "$DOCKER_CONFIG"
+      - name: Install system dependencies and doas
+        shell: sh
+        run: |
+          # Actualizar e instalar dependencias necesarias
+          apk update
+          apk add --no-cache \
+            curl \
+            git \
+            pkgconfig \
+            openssl-dev \
+            build-base \
+            ca-certificates \
+            doas
 
-          apt-get update
+          # Configurar doas para el entorno (permitir root sin password)
+          echo "permit nopass root" > /etc/doas.conf
 
-          apt-get install -y curl git pkg-config libssl-dev build-essential ca-certificates
       - name: Install Rust
-        shell: bash
-        run: >
+        shell: sh
+        run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
           . "$HOME/.cargo/env"
-
           echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+
       - name: Clone repository
-        shell: bash
+        shell: sh
         run: |
           git clone https://github.com/hykilpikonna/hyfetch.git
           ls -la hyfetch
+
       - name: Prepare build
-        shell: bash
+        shell: sh
         run: |
           cd hyfetch
           rustc -vV
           cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+
       - name: Build
-        shell: bash
+        shell: sh
         run: |
           cd hyfetch
           cargo build --frozen --release --all-features
+
       - name: Test
-        shell: bash
+        shell: sh
         run: |
           cd hyfetch
           cargo test --frozen --all-features
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hyfetch-binary
+          name: hyfetch-alpine-binary
           path: hyfetch/target/release/hyfetch
