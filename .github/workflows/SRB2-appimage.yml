@@ -1,56 +1,73 @@
-name: Build SRB2 Nativo Alpine
-
-on:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    container:
-      image: alpine:latest
-
-    steps:
-      - name: Configurar Entorno
-        run: |
-          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/main" > /etc/apk/repositories
-          echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
-          apk update
-          apk add doas shadow bash
-          mkdir -p /etc/doas.d
-          echo "permit nopass root" > /etc/doas.d/doas.conf
-          echo "USER=root" >> $GITHUB_ENV
-          echo "HOME=/root" >> $GITHUB_ENV
-          echo "TERM=xterm" >> $GITHUB_ENV
-
-      - name: Instalar Dependencias
-        run: |
-          doas apk add make git which coreutils findutils file net-tools \
-                       ncurses curl gawk stow fuse zlib-dev patchelf \
-                       gdk-pixbuf build-base sdl2-dev libpng-dev \
-                       libgme-dev libopenmpt-dev curl-dev mesa-dev glu-dev
-
-      - name: Preparar srb2bld
-        run: |
-          git clone https://github.com/Bijman/srb2bld.git
-          cd srb2bld
-          doas make install
-
-      - name: Compilar SRB2
-        run: |
-          export USER=root
-          export HOME=/root
-          addgroup -S docker || true
-          # El primer \n salta el aviso de root, el 1 elige SRB2, los siguientes aceptan defaults
-          printf "\n1\n1\nn\nn\n" | srb2bld --install --user
-
-      - name: Exportar Binarios
-        run: |
-          mkdir -p ./dist
-          [ -d "/root/.local/bin" ] && cp /root/.local/bin/srb2* ./dist/ || true
-          find /root/srb2bld_builds/ -type f -executable -exec cp {} ./dist/ \; 2>/dev/null || true
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SRB2-Nativo-Alpine
-          path: ./dist/
+0s
+Run export USER=root
+WARNING: Error loading config file: open /root/.docker/config.json: permission denied
+WARNING: It is not recommended to run srb2bld as root. Press ctrl+c to quit and run again script as user in "docker" group or continue.
+
+[0m
+==> Please choose by typing number and then pressing enter. Press enter or ctrl+c to quit.
+1) Build SRB2
+2) Build SRB2 v2.2 Classic
+3) Build SRB2 v2.2 Beta 6
+4) Build SRB2 Uncapped Plus
+5) Build SRB2 NetPlus
+6) Build SRB2 Reveries
+7) Build SRB2 TSoURDt3rd
+8) Build SRB2 Edit
+9) Build SRB2: The Great Galactic Journey
+10) Build SRB2 Destructive Illusion
+11) Build SRB2 VR
+12) Build SRB2 v2.1 Legacy
+13) Build SRB2 Fusion Advance
+14) Build SRB2 Thokker
+15) Build SRB2 Top Down
+16) Build Sonic Smash Brawl
+17) Build SRB2 v2.0
+18) Build SRB2 Community Build
+19) Build XSRB2
+20) Build SRB2 SF94-Serv
+21) Build SRB2 Riders
+22) Build Super SRB2 Kart Z
+23) Build Super Bomberman Blast 2
+24) Build SRB2 Final Demo
+25) Build SRB2 1095
+26) Build SRB2 JTE
+27) Build ShufflarB2
+28) Build SRB2 Live
+29) Build SRB2 LoZ
+30) Build Super Smash Bros: Sonic Showdown
+31) Build NewMillennium
+32) Build SRB2 Persona
+33) Build SRB2 Kart
+34) Build SRB2 Kart Galaxy
+35) Build SRB2 Kart HEP
+36) Build SRB2 Kart Saturn
+37) Build SRB2 Kart Neptune
+38) Build SRB2 Kart VR
+39) Build BlanKart
+40) Build Ring Racers
+41) Build Ring Racers Noire
+42) Build Ring Racers HEP
+43) Build Ring Racers Freaky Build
+44) Build Radio Racers
+45) Build SRB2 Custom
+46) Build wadcli
+47) Build kartmaker (SRB2 Kart)
+48) Build NeptuneFM (SRB2 Kart)
+49) Build kartmaker (Ring Racers)
+50) Build followermaker (Ring Racers)
+51) Build SLADE
+52) Build Ultimate Zone Builder
+53) Build Ultimate GKSZ Builder
+54) Build Ultimate Lowee Builder
+55) Build High Voltage Ring
+56) Build Aseprite with Kart Builder
+#? 
+No option has been chosen.
+0s
+Run mkdir -p ./dist
+WARNING: Error loading config file: open /root/.docker/config.json: permission denied
+0s
+Run actions/upload-artifact@v4
+/usr/bin/docker exec  dc7700f5d4e4ec94e9f5541952785bb307b68fd7120bd43c842c0105f75eae04 sh -c "cat /etc/*release | grep ^ID"
+WARNING: Error loading config file: open /root/.docker/config.json: permission denied
+Warning: No files were found with the provided path: ./dist/. No artifacts will be uploaded.
