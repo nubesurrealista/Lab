@@ -10,56 +10,46 @@ jobs:
       image: alpine:latest
 
     steps:
-      - name: Configurar Repositorios y doas
+      - name: Configurar Entorno
         run: |
-          # Activar repositorios community para dependencias de desarrollo
           echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/main" > /etc/apk/repositories
           echo "http://dl-cdn.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
-          
           apk update
           apk add doas shadow bash
-          
-          # Configurar doas para root
+          mkdir -p /etc/doas.d
           echo "permit nopass root" > /etc/doas.d/doas.conf
-          
-          # Definir variables de entorno críticas
           echo "USER=root" >> $GITHUB_ENV
           echo "HOME=/root" >> $GITHUB_ENV
           echo "TERM=xterm" >> $GITHUB_ENV
 
-      - name: Instalar Dependencias del Sistema
+      - name: Instalar Dependencias
         run: |
-          # Instalamos la lista oficial adaptada a Alpine + herramientas de compilación
           doas apk add make git which coreutils findutils file net-tools \
-                       ncurses curl gawk stow fuse zlib patchelf \
+                       ncurses curl gawk stow fuse zlib-dev patchelf \
                        gdk-pixbuf build-base sdl2-dev libpng-dev \
-                       libgme-dev openmpt-dev curl-dev mesa-dev glu-dev
+                       libgme-dev libopenmpt-dev curl-dev mesa-dev glu-dev
 
-      - name: Clonar e Instalar srb2bld
+      - name: Preparar srb2bld
         run: |
           git clone https://github.com/Bijman/srb2bld.git
           cd srb2bld
           doas make install
 
-      - name: Compilación Nativa Automática
+      - name: Compilar SRB2
         run: |
-          # Usamos --install para compilar y --user para que se guarde en $HOME
-          # printf "1\n1\nn\n" selecciona: 1 (SRB2), 1 (64-bit), n (no instalar assets de nuevo si ya están)
-          # 'yes ""' ayuda a pasar cualquier prompt de confirmación sobrante
-          yes "" | srb2bld --install --user || true
+          export USER=root
+          export HOME=/root
+          addgroup -S docker || true
+          yes "" | srb2bld --install --user
 
-      - name: Organizar y Subir Artefactos
+      - name: Exportar Binarios
         run: |
           mkdir -p ./dist
-          # srb2bld instala los binarios en ~/.local/bin cuando usas --user
-          if [ -d "/root/.local/bin" ]; then
-            cp /root/.local/bin/srb2* ./dist/
-          fi
-          # También buscamos en la carpeta de builds por si acaso
+          [ -d "/root/.local/bin" ] && cp /root/.local/bin/srb2* ./dist/ || true
           find /root/srb2bld_builds/ -type f -executable -exec cp {} ./dist/ \; 2>/dev/null || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SRB2-Nativo-Alpine-Binaries
+          name: SRB2-Nativo-Alpine
           path: ./dist/
