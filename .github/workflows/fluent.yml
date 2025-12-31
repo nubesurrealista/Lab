@@ -12,10 +12,9 @@ jobs:
       - name: Setup Build Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder elfutils
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak remote-modify --enable flathub
-          sudo flatpak update --appstream
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak update --user --appstream
 
       - name: Prepare Source and Manifest
         run: |
@@ -90,14 +89,9 @@ jobs:
           EOF
 
       - name: Build Flatpak Bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          bundle: FluentFlame-Universal.flatpak
-          manifest-path: org.fluentflame.Reader.yml
-          cache: true
-          restore-cache: true
-          arch: x86_64
-          run-tests: false
+        run: |
+          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
+          flatpak build-bundle repo FluentFlame-Universal.flatpak org.fluentflame.Reader
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
