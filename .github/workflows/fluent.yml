@@ -84,7 +84,7 @@ jobs:
                     - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
           EOF
 
-      - name: "Install Flatpak Dependencies"
+      - name: "Install Build Tools"
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder
@@ -97,6 +97,7 @@ jobs:
           cache: true
           restore-cache: true
           arch: x86_64
+          # Forzamos los remotos aquí para que la acción los use al instalar dependencias
           repository-url: https://flathub.org/repo/flathub.flatpakrepo
           repository-name: flathub
 
