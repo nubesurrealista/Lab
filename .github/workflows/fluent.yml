@@ -19,7 +19,6 @@ jobs:
       - name: Prepare Source and Manifest
         run: |
           git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
-
           cat <<EOF > org.fluentflame.Reader.desktop
           [Desktop Entry]
           Name=Fluent Flame
@@ -30,7 +29,6 @@ jobs:
           Categories=Network;News;
           Terminal=false
           EOF
-
           cat <<EOF > org.fluentflame.Reader.appdata.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <component type="desktop-application">
@@ -44,7 +42,6 @@ jobs:
             </description>
           </component>
           EOF
-
           cat <<EOF > org.fluentflame.Reader.yml
           app-id: org.fluentflame.Reader
           runtime: org.freedesktop.Platform
@@ -71,10 +68,12 @@ jobs:
             - name: fluentflame-reader
               buildsystem: simple
               build-options:
-                append-path: /usr/lib/sdk/node20/bin
+                append-path: /usr/lib/sdk/node20/bin:node_modules/.bin
+                env:
+                  NPM_CONFIG_LOGLEVEL: info
               build-commands:
-                - npm ci
-                - npm run build
+                - npm install --prefer-offline --no-audit
+                - ./node_modules/.bin/webpack --config ./webpack.config.js
                 - npx electron-builder --linux --dir -p never --x64
                 - cp -r dist/linux-unpacked /app/fluentflame
                 - install -Dm 755 start-fluent-reader.sh /app/bin/start-fluent-reader
