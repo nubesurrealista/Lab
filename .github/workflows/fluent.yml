@@ -81,12 +81,11 @@ jobs:
                     - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
           EOF
 
-      - name: "Install Flatpak and Add Flathub"
+      - name: "Setup Flatpak Environment"
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder
-          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          flatpak update --user
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: "Build Flatpak Bundle"
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
@@ -97,6 +96,8 @@ jobs:
           restore-cache: true
           branch: master
           arch: x86_64
+          repository-url: https://flathub.org/repo/flathub.flatpakrepo
+          repository-name: flathub
 
       - name: "Upload Flatpak Artifact"
         uses: actions/upload-artifact@v4
