@@ -1,21 +1,26 @@
-name: "Manual Build: Universal Flatpak"
+name: Manual Build Universal Flatpak
 
 on:
   workflow_dispatch:
 
 jobs:
   build_flatpak:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
-      - name: "Checkout Packaging Repo"
-        uses: "actions/checkout@v5"
+      - uses: actions/checkout@v4
 
-      - name: "Clone Fluent Flame Source"
+      - name: Setup Build Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder elfutils
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak remote-modify --enable flathub
+          sudo flatpak update --appstream
+
+      - name: Prepare Source and Manifest
         run: |
           git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
 
-      - name: "Prepare Metainfo and Manifest"
-        run: |
           cat <<EOF > org.fluentflame.Reader.desktop
           [Desktop Entry]
           Name=Fluent Flame
@@ -84,12 +89,7 @@ jobs:
                     - exec zypak-wrapper /app/fluentflame/fluentflame-reader --ozone-platform-hint=auto "$@"
           EOF
 
-      - name: "Install Build Tools"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
-
-      - name: "Build Flatpak Bundle"
+      - name: Build Flatpak Bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: FluentFlame-Universal.flatpak
@@ -97,11 +97,9 @@ jobs:
           cache: true
           restore-cache: true
           arch: x86_64
-          # Forzamos los remotos aquí para que la acción los use al instalar dependencias
-          repository-url: https://flathub.org/repo/flathub.flatpakrepo
-          repository-name: flathub
+          run-tests: false
 
-      - name: "Upload Flatpak Artifact"
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FluentFlame-Flatpak-Bundle
