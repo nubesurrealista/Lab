@@ -22,7 +22,6 @@ jobs:
           npm install
           npm run build
           npm run package-deb
-          # Buscamos el .deb en cualquier subcarpeta y lo movemos a la raíz
           find . -name "*.deb" -exec cp {} ../package.deb \;
           cd ..
 
@@ -48,23 +47,26 @@ jobs:
               build-commands:
                 - ar x package.deb
                 - tar xf data.tar.*
-                # Listar contenido para debug
-                - ls -F
-                # Copiar contenido de opt o usr a /app
                 - if [ -d opt ]; then cp -r opt/* /app/; fi
                 - if [ -d usr ]; then cp -r usr/* /app/; fi
                 
-                # Crear el binario ejecutable en el PATH de Flatpak
+                # Limpieza de archivos pesados innecesarios
+                - rm -rf /app/share/doc /app/share/man /app/share/info
+                - find /app -name "*.a" -delete
+                - find /app -name "*.h" -delete
+                
+                # Strip binarios para reducir tamaño significativamente
+                - find /app -type f -name "*.so*" -exec strip --strip-unneeded {} + || true
+                - find /app -type f -executable -exec strip --strip-unneeded {} + || true
+
                 - mkdir -p /app/bin
                 - find /app -name "fluentflame-reader" -type f -executable -exec ln -s {} /app/bin/fluentflame-reader \;
                 
-                # Configurar el archivo .desktop con el nombre correcto del ID
                 - mkdir -p /app/share/applications
                 - find . -name "*.desktop" -exec cp {} /app/share/applications/org.fluentflame.Reader.desktop \;
                 - sed -i 's/Exec=.*/Exec=fluentflame-reader --no-sandbox --ozone-platform-hint=auto/' /app/share/applications/org.fluentflame.Reader.desktop
                 - sed -i 's/Icon=.*/Icon=org.fluentflame.Reader/' /app/share/applications/org.fluentflame.Reader.desktop
                 
-                # Configurar el icono para que coincida con el ID
                 - mkdir -p /app/share/icons/hicolor/512x512/apps/
                 - find . -name "fluentflame-reader.png" -exec cp {} /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png \;
               sources:
@@ -74,12 +76,12 @@ jobs:
 
       - name: Build Flatpak Bundle
         run: |
-          # Instalamos dependencias y construimos el bundle
-          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
+          # --no-debuginfo evita generar megabytes de datos de depuración extra
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --no-debuginfo --repo=repo build_dir org.fluentflame.Reader.yml
           flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FluentFlame-Final-Bundle
-          path: FluentFlame-Personal.flat
+          path: FluentFlame-Personal.flatpak
