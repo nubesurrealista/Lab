@@ -1,21 +1,23 @@
 name: Build l3afpad Alpine (musl)
 on: workflow_dispatch
+
 jobs:
   build:
     runs-on: ubuntu-latest
     container: alpine:latest
+
     steps:
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           apk update
           apk add git autoconf automake intltool \
                   gtk+3.0-dev pkgconfig build-base \
-                  gettext-dev libmd4c-dev
+                  gettext-dev
 
-      - name: Clone
+      - name: Clone l3afpad
         run: git clone https://github.com/nubesurrealista/l3afpad.git
 
-      - name: Build
+      - name: Prepare and build
         run: |
           cd l3afpad
           mkdir -p m4
@@ -36,18 +38,14 @@ jobs:
           mkdir -p package/usr/share/applications
           
           cp install-staging/usr/bin/l3afpad package/usr/bin/
-          
-          if [ -f install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo ]; then
-            cp install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo \
-               package/usr/share/locale/es/LC_MESSAGES/
-          fi
-          
+          cp install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo \
+             package/usr/share/locale/es/LC_MESSAGES/
           cp install-staging/usr/share/applications/l3afpad.desktop \
              package/usr/share/applications/
           
           tar -czf l3afpad-alpine-es.tar.gz -C package .
 
-      - name: Upload
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: l3afpad-alpine-musl
