@@ -1,27 +1,24 @@
-name: Build l3afpad (Spanish)
+name: Build l3afpad Alpine (musl)
 on: workflow_dispatch
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:12
+    container: alpine:latest
     steps:
-      - name: Update package list
-        run: apt-get update
-
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
-          apt-get install -y \
-            git autoconf automake intltool \
-            libgtk-3-dev pkg-config build-essential \
-            gettext \
-            libmd4c-dev
+          apk update
+          apk add git autoconf automake intltool \
+                  gtk+3.0-dev pkgconfig build-base \
+                  gettext-dev libmd4c-dev
 
-      - name: Clone l3afpad
-        run: git clone --branch markdown-test https://github.com/nubesurrealista/l3afpad.git
+      - name: Clone
+        run: git clone https://github.com/nubesurrealista/l3afpad.git
 
-      - name: Prepare and build
+      - name: Build
         run: |
           cd l3afpad
+          mkdir -p m4
           autoreconf -fi
           ./configure --prefix=/usr
           make -j$(nproc)
@@ -32,26 +29,26 @@ jobs:
           mkdir -p ../install-staging
           make install DESTDIR=$PWD/../install-staging
 
-      - name: Verify Spanish translation
-        run: |
-          find install-staging -name "l3afpad.mo" | grep es || echo "No Spanish .mo found!"
-          ls -l install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo || true
-
       - name: Package binary + Spanish locale
         run: |
           mkdir -p package/usr/bin
           mkdir -p package/usr/share/locale/es/LC_MESSAGES
           mkdir -p package/usr/share/applications
+          
           cp install-staging/usr/bin/l3afpad package/usr/bin/
-          cp install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo \
+          
+          if [ -f install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo ]; then
+            cp install-staging/usr/share/locale/es/LC_MESSAGES/l3afpad.mo \
                package/usr/share/locale/es/LC_MESSAGES/
+          fi
+          
           cp install-staging/usr/share/applications/l3afpad.desktop \
-               package/usr/share/applications/
-          tar -czf l3afpad-es.tar.gz -C package .
+             package/usr/share/applications/
+          
+          tar -czf l3afpad-alpine-es.tar.gz -C package .
 
-      - name: Upload artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: l3afpad-es-full
-          path: l3afpad-es.tar.gz
-          
+          name: l3afpad-alpine-musl
+          path: l3afpad-alpine-es.tar.gz
