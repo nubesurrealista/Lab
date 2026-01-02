@@ -8,14 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:latest
 
-    steps:
-    - name: Install dependencies
+   - name: Install dependencies
       run: |
         apk add --no-cache \
           build-base \
           intltool \
           gtk+2.0-dev \
-          polkit-gnome-dev \
+          polkit-dev \
           dbus-glib-dev \
           libx11-dev \
           automake \
