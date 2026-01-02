@@ -11,6 +11,7 @@ jobs:
     steps:
     - name: Install dependencies
       run: |
+        apk update
         apk add --no-cache \
           build-base \
           intltool \
@@ -22,8 +23,9 @@ jobs:
           autoconf \
           libtool \
           git \
-          tar
-          vala
+          tar \
+          vala \
+          gettext-dev
 
     - name: Clone LXSession source
       run: git clone https://github.com/lxde/lxsession.git
@@ -43,11 +45,9 @@ jobs:
       run: |
         mkdir -p export/bin export/share/applications
         cd lxsession
-        # Copiamos el binario y el acceso directo
         cp lxpolkit/lxpolkit ../export/bin/
         cp data/lxpolkit.desktop ../export/share/applications/
         
-        # Opcional: Copiar traducciones si existen
         mkdir -p ../export/share/locale
         cp -r po/*.gmo ../export/share/locale/ 2>/dev/null || true
 
