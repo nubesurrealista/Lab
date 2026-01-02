@@ -1,0 +1,59 @@
+name: Compile PCManFM & LibFM (GTK2) for Alpine
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+    - name: Install Build Dependencies
+      run: |
+        apk update
+        apk add --no-cache \
+          build-base git automake autoconf libtool intltool \
+          gtk+2.0-dev polkit-dev glib-dev menu-cache-dev \
+          libexif-dev libx11-dev vala gettext-dev \
+          libfm-extra-dev # Requerido para algunas funciones de libfm
+
+    - name: Clone Repositories
+      run: |
+        git clone https://github.com/lxde/libfm.git
+        git clone https://github.com/lxde/pcmanfm.git
+
+    - name: Build LibFM (The Engine)
+      run: |
+        cd libfm
+        ./autogen.sh
+        ./configure \
+          --prefix=/usr \
+          --sysconfdir=/etc \
+          --with-gtk=2 \
+          --enable-udisks \
+          --disable-static
+        make -j$(nproc)
+        make install DESTDIR=$(pwd)/../export
+
+    - name: Build PCManFM (The UI)
+      run: |
+        # Necesitamos que el compilador vea la libfm que acabamos de "instalar" en export
+        export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$(pwd)/export/usr/lib/pkgconfig
+        export C_INCLUDE_PATH=$C_INCLUDE_PATH:$(pwd)/export/usr/include
+        export LIBRARY_PATH=$LIBRARY_PATH:$(pwd)/export/usr/lib
+        
+        cd pcmanfm
+        ./autogen.sh
+        ./configure \
+          --prefix=/usr \
+          --sysconfdir=/etc \
+          --with-gtk=2
+        make -j$(nproc)
+        make install DESTDIR=$(pwd)/../export
+
+    - name: Upload Complete Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: pcmanfm-gtk2-bundle
+        path: export/
