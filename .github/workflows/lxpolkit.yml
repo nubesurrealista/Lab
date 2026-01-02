@@ -1,0 +1,54 @@
+name: Compile LXPolkit (GTK2) for Alpine
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+    - name: Install dependencies
+      run: |
+        apk add --no-cache \
+          build-base \
+          intltool \
+          gtk+2.0-dev \
+          polkit-gnome-dev \
+          dbus-glib-dev \
+          libx11-dev \
+          automake \
+          autoconf \
+          libtool \
+          git \
+          tar
+
+    - name: Clone LXSession source
+      run: git clone https://github.com/lxde/lxsession.git
+
+    - name: Compile
+      run: |
+        cd lxsession
+        ./autogen.sh
+        ./configure \
+          --prefix=/usr \
+          --enable-gtk3=no \
+          --enable-buildin-polkit \
+          --disable-man
+        make -j$(nproc)
+
+    - name: Prepare Package
+      run: |
+        mkdir -p export/bin export/share/applications export/share/locale
+        cd lxsession
+        # Copiar solo lo esencial para lxpolkit
+        cp lxpolkit/lxpolkit ../export/bin/
+        cp data/lxpolkit.desktop ../export/share/applications/
+        cp -r po/*.gmo ../export/share/locale/ || true
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: lxpolkit-alpine-bin
+        path: export/
