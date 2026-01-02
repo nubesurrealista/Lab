@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:latest
 
-   - name: Install dependencies
+    steps:
+    - name: Install dependencies
       run: |
         apk add --no-cache \
           build-base \
@@ -39,12 +40,15 @@ jobs:
 
     - name: Prepare Package
       run: |
-        mkdir -p export/bin export/share/applications export/share/locale
+        mkdir -p export/bin export/share/applications
         cd lxsession
-        # Copiar solo lo esencial para lxpolkit
+        # Copiamos el binario y el acceso directo
         cp lxpolkit/lxpolkit ../export/bin/
         cp data/lxpolkit.desktop ../export/share/applications/
-        cp -r po/*.gmo ../export/share/locale/ || true
+        
+        # Opcional: Copiar traducciones si existen
+        mkdir -p ../export/share/locale
+        cp -r po/*.gmo ../export/share/locale/ 2>/dev/null || true
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
