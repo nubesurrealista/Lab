@@ -16,7 +16,8 @@ jobs:
           build-base git automake autoconf libtool intltool \
           gtk+2.0-dev polkit-dev glib-dev menu-cache-dev \
           libexif-dev libx11-dev vala gettext-dev \
-          libfm-extra-dev gtk-doc libxml2-utils
+          libfm-extra-dev gtk-doc libxml2-utils \
+          dbus-gl-dev dbus-dev libxml2-dev
 
     - name: Clone Repositories
       run: |
@@ -39,7 +40,7 @@ jobs:
 
     - name: Build PCManFM
       run: |
-        # Inyectar la libfm recién compilada para que pcmanfm la encuentre
+        # Inyectar la libfm recién compilada
         export PKG_CONFIG_PATH=$(pwd)/export/usr/lib/pkgconfig:$PKG_CONFIG_PATH
         export C_INCLUDE_PATH=$(pwd)/export/usr/include:$C_INCLUDE_PATH
         export LIBRARY_PATH=$(pwd)/export/usr/lib:$LIBRARY_PATH
