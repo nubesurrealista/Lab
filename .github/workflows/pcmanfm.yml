@@ -17,7 +17,7 @@ jobs:
           gtk+2.0-dev polkit-dev glib-dev menu-cache-dev \
           libexif-dev libx11-dev vala gettext-dev \
           libfm-extra-dev gtk-doc libxml2-utils \
-          dbus-gl-dev dbus-dev libxml2-dev
+          dbus-glib-dev dbus-dev libxml2-dev libsm-dev
 
     - name: Clone Repositories
       run: |
