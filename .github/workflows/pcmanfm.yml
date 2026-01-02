@@ -1,4 +1,4 @@
-name: Compile PCManFM & LibFM (GTK2) for Alpine
+name: Compile PCManFM & LibFM (GTK2) Full Bundle
 
 on:
   workflow_dispatch:
@@ -16,14 +16,14 @@ jobs:
           build-base git automake autoconf libtool intltool \
           gtk+2.0-dev polkit-dev glib-dev menu-cache-dev \
           libexif-dev libx11-dev vala gettext-dev \
-          libfm-extra-dev # Requerido para algunas funciones de libfm
+          libfm-extra-dev gtk-doc libxml2-utils
 
     - name: Clone Repositories
       run: |
-        git clone https://github.com/lxde/libfm.git
-        git clone https://github.com/lxde/pcmanfm.git
+        git clone --depth 1 https://github.com/lxde/libfm.git
+        git clone --depth 1 https://github.com/lxde/pcmanfm.git
 
-    - name: Build LibFM (The Engine)
+    - name: Build LibFM
       run: |
         cd libfm
         ./autogen.sh
@@ -32,16 +32,17 @@ jobs:
           --sysconfdir=/etc \
           --with-gtk=2 \
           --enable-udisks \
-          --disable-static
+          --disable-static \
+          --disable-gtk-doc 
         make -j$(nproc)
         make install DESTDIR=$(pwd)/../export
 
-    - name: Build PCManFM (The UI)
+    - name: Build PCManFM
       run: |
-        # Necesitamos que el compilador vea la libfm que acabamos de "instalar" en export
-        export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$(pwd)/export/usr/lib/pkgconfig
-        export C_INCLUDE_PATH=$C_INCLUDE_PATH:$(pwd)/export/usr/include
-        export LIBRARY_PATH=$LIBRARY_PATH:$(pwd)/export/usr/lib
+        # Inyectar la libfm recién compilada para que pcmanfm la encuentre
+        export PKG_CONFIG_PATH=$(pwd)/export/usr/lib/pkgconfig:$PKG_CONFIG_PATH
+        export C_INCLUDE_PATH=$(pwd)/export/usr/include:$C_INCLUDE_PATH
+        export LIBRARY_PATH=$(pwd)/export/usr/lib:$LIBRARY_PATH
         
         cd pcmanfm
         ./autogen.sh
@@ -52,8 +53,8 @@ jobs:
         make -j$(nproc)
         make install DESTDIR=$(pwd)/../export
 
-    - name: Upload Complete Package
+    - name: Upload Full Bundle
       uses: actions/upload-artifact@v4
       with:
-        name: pcmanfm-gtk2-bundle
+        name: pcmanfm-gtk2-full-alpine
         path: export/
