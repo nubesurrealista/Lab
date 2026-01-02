@@ -23,6 +23,7 @@ jobs:
           libtool \
           git \
           tar
+          vala
 
     - name: Clone LXSession source
       run: git clone https://github.com/lxde/lxsession.git
