@@ -43,16 +43,27 @@ jobs:
 
     - name: Prepare Package
       run: |
-        mkdir -p export/bin export/share/applications
-        cd lxsession
-        cp lxpolkit/lxpolkit ../export/bin/
-        cp data/lxpolkit.desktop ../export/share/applications/
+        # Creamos la estructura exacta que espera el sistema
+        mkdir -p export/usr/bin
+        mkdir -p export/usr/share/applications
+        mkdir -p export/usr/share/lxsession/ui
+        mkdir -p export/usr/share/locale
         
-        mkdir -p ../export/share/locale
-        cp -r po/*.gmo ../export/share/locale/ 2>/dev/null || true
+        cd lxsession
+        # 1. Binario
+        cp lxpolkit/lxpolkit ../export/usr/bin/
+        
+        # 2. Archivo Desktop
+        cp data/lxpolkit.desktop ../export/usr/share/applications/
+        
+        # 3. ARCHIVOS UI (Esto es lo que faltaba para evitar los errores NULL)
+        cp data/ui/lxpolkit.ui ../export/usr/share/lxsession/ui/
+        
+        # 4. Traducciones
+        cp -r po/*.gmo ../export/usr/share/locale/ 2>/dev/null || true
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: lxpolkit-alpine-bin
+        name: lxpolkit-alpine-complete
         path: export/
