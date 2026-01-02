@@ -1,0 +1,49 @@
+name: Build LXAppearance Alpine (musl)
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk update
+          apk add git autoconf automake intltool \
+                  gtk+2.0-dev pkgconfig build-base \
+                  gettext-dev dbus-glib-dev libx11-dev
+
+      - name: Clone LXAppearance
+        run: git clone https://github.com/lxde/lxappearance.git
+
+      - name: Prepare and build
+        run: |
+          cd lxappearance
+          ./autogen.sh
+          ./configure --prefix=/usr --enable-dbus
+          make -j$(nproc)
+
+      - name: Install to staging
+        run: |
+          cd lxappearance
+          mkdir -p ../install-staging
+          make install DESTDIR=$PWD/../install-staging
+
+      - name: Package binary
+        run: |
+          mkdir -p package/usr/bin
+          mkdir -p package/usr/share
+          cp -r install-staging/usr/bin/lxappearance package/usr/bin/
+          cp -r install-staging/usr/share/lxappearance package/usr/share/
+          cp -r install-staging/usr/share/applications package/usr/share/
+          if [ -d "install-staging/usr/share/locale" ]; then
+            cp -r install-staging/usr/share/locale package/usr/share/
+          fi
+          tar -czf lxappearance-alpine.tar.gz -C package .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lxappearance-bin
+          path: lxappearance-alpine.tar.gz
