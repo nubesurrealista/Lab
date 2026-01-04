@@ -1,0 +1,36 @@
+name: Build Librespeed CLI (Alpine Edition)
+on:
+  workflow_dispatch:
+
+jobs:
+  build-librespeed:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Install System Dependencies
+        run: |
+          # Actualizamos e instalamos herramientas de compilación y doas
+          apk update
+          apk add git go bash build-base doas
+
+      - name: Clone and Build Librespeed-CLI
+        run: |
+          # Clonamos el repositorio
+          git clone https://github.com/librespeed/speedtest-cli
+          cd speedtest-cli
+          
+          # Damos permisos de ejecución y compilamos
+          # El script build.sh de librespeed usa internamente comandos de Go
+          chmod +x build.sh
+          ./build.sh
+          
+          # Verificamos el contenido de la carpeta de salida
+          ls -R out/
+
+      - name: Upload Librespeed Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: librespeed-cli-alpine
+          # Buscamos el binario generado en la carpeta out
+          # Usamos un wildcard porque el nombre incluye arquitectura (ej: librespeed-cli-linux-amd64)
+          path: speedtest-cli/out/librespeed-cli-*
