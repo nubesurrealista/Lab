@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Rustup Fix)
+name: Build Tuta Mail Desktop for Alpine Latest (Linker Fix)
 
 on:
   workflow_dispatch:
@@ -18,31 +18,31 @@ jobs:
           build-base git nodejs npm python3 py3-pip \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ \
-          openssh-client curl clang19 lld19 llvm19 binaryen doas
+          openssh-client curl clang19 lld19 llvm19 binaryen doas \
+          binutils # <--- ESTO INSTALA UN 'ld' REAL
 
     - name: Configure doas
       run: |
         echo "permit nopass keepenv root as user" > /etc/doas.conf
         echo "permit nopass keepenv :root" >> /etc/doas.conf
 
-    - name: Alpine Toolchain Symlinks
+    - name: Alpine Toolchain Symlinks (Forced)
       run: |
+        # Forzamos los enlaces en /usr/bin que es el PATH prioritario
         ln -sf /usr/bin/clang-19 /usr/bin/clang
         ln -sf /usr/bin/clang++-19 /usr/bin/clang++
-        ln -sf /usr/bin/wasm-ld /usr/bin/ld
+        ln -sf /usr/bin/wasm-ld /usr/bin/wasm-ld
+        ln -sf /usr/bin/ld.lld /usr/bin/ld # <--- Usar el linker de LLD como ld estándar
         ln -sf /usr/bin/llvm-ar /usr/bin/ar
+        ln -sf /usr/bin/llvm-nm /usr/bin/nm
+        ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
 
     - name: Setup Rustup (Custom Fix for Alpine)
       run: |
-        # Definimos HOME explícitamente para evitar el conflicto euid/HOME
         export HOME=/root
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-        
-        # Enlazamos los binarios a /usr/bin inmediatamente para que sean universales
         ln -sf /root/.cargo/bin/* /usr/bin/
-        
         source /root/.cargo/env
-        # Instalamos los targets necesarios que el apk no permite
         rustup target add x86_64-unknown-linux-musl
         rustup target add x86_64-unknown-linux-gnu
         rustup default stable-x86_64-unknown-linux-musl
@@ -51,14 +51,12 @@ jobs:
       run: |
         git clone --depth 1 --branch 3.1.59 https://github.com/emscripten-core/emscripten.git $GITHUB_WORKSPACE/emscripten_src
         cd $GITHUB_WORKSPACE/emscripten_src
-        
         cat <<EOF > .emscripten
         LLVM_ROOT = '/usr/bin'
         BINARYEN_ROOT = '/usr/bin'
         NODE_JS = '/usr/bin/node'
         EMSCRIPTEN_ROOT = '$GITHUB_WORKSPACE/emscripten_src'
         EOF
-        
         cp .emscripten ~/.emscripten
         export LLVM_ROOT='/usr/bin'
         export PATH="/usr/bin:$PATH"
@@ -83,29 +81,37 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (Native Emscripten & Multi-Target Rust)
+    - name: Build Tuta Packages (Linker & Environment Fix)
       working-directory: ./tutanota
       run: |
-        # Re-aseguramos el PATH incluyendo el Emscripten de fuente y Rustup
         export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         export HOME=/root
         
+        # DEFINICIÓN EXPLÍCITA DE HERRAMIENTAS
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
+        export NM=llvm-nm
+        export LD=ld.lld
+        export RANLIB=llvm-ranlib
         
-        # Flags para compatibilidad en Alpine
+        # Parche CFLAGS para headers de Alpine
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         export CXXFLAGS=$CFLAGS
         
-        # Forzar target musl pero con disponibilidad de core gnu
+        # Target fix
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         
+        # Ejecución con doas inyectando LD y PATH
         doas env PATH="$PATH" \
              HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
+             LD="$LD" \
+             AR="$AR" \
+             NM="$NM" \
+             RANLIB="$RANLIB" \
              CFLAGS="$CFLAGS" \
              CXXFLAGS="$CXXFLAGS" \
              CARGO_BUILD_TARGET="$CARGO_BUILD_TARGET" \
@@ -118,6 +124,7 @@ jobs:
         export HOME=/root
         export CC=clang
         export CXX=clang++
+        export LD=ld.lld
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         
         rm -rf libs/webassembly/include
@@ -126,13 +133,14 @@ jobs:
              HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
+             LD="$LD" \
              CFLAGS="$CFLAGS" \
              node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build no encontrado"
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build failed"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
