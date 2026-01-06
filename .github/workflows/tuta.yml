@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Linker Fix)
+name: Build Tuta Mail Desktop for Alpine Latest (Linker & Target Fix)
 
 on:
   workflow_dispatch:
@@ -19,25 +19,24 @@ jobs:
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ \
           openssh-client curl clang19 lld19 llvm19 binaryen doas \
-          binutils # <--- ESTO INSTALA UN 'ld' REAL
+          binutils binutils-gold
 
     - name: Configure doas
       run: |
         echo "permit nopass keepenv root as user" > /etc/doas.conf
         echo "permit nopass keepenv :root" >> /etc/doas.conf
 
-    - name: Alpine Toolchain Symlinks (Forced)
+    - name: Alpine Toolchain Symlinks (Total Fix)
       run: |
-        # Forzamos los enlaces en /usr/bin que es el PATH prioritario
+        # Enlaces prioritarios
         ln -sf /usr/bin/clang-19 /usr/bin/clang
         ln -sf /usr/bin/clang++-19 /usr/bin/clang++
-        ln -sf /usr/bin/wasm-ld /usr/bin/wasm-ld
-        ln -sf /usr/bin/ld.lld /usr/bin/ld # <--- Usar el linker de LLD como ld estándar
+        ln -sf /usr/bin/ld.lld /usr/bin/ld
         ln -sf /usr/bin/llvm-ar /usr/bin/ar
         ln -sf /usr/bin/llvm-nm /usr/bin/nm
         ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
 
-    - name: Setup Rustup (Custom Fix for Alpine)
+    - name: Setup Rustup (Multi-Target Alpine)
       run: |
         export HOME=/root
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
@@ -81,37 +80,34 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (Linker & Environment Fix)
+    - name: Build Tuta Packages (AWS-LC Linker Fix)
       working-directory: ./tutanota
       run: |
         export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         export HOME=/root
         
-        # DEFINICIÓN EXPLÍCITA DE HERRAMIENTAS
+        # DEFINICIÓN DE HERRAMIENTAS
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
         export NM=llvm-nm
-        export LD=ld.lld
         export RANLIB=llvm-ranlib
         
-        # Parche CFLAGS para headers de Alpine
-        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
-        export CXXFLAGS=$CFLAGS
+        # PARCHE CRÍTICO PARA AWS-LC-SYS
+        # -fuse-ld=lld obliga a clang a usar lld sin buscar el binario 'ld' en rutas oscuras
+        # Incluimos el fix de compatibilidad de headers de Alpine
+        COMMON_FLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min)) -fuse-ld=lld"
+        export CFLAGS="$COMMON_FLAGS"
+        export CXXFLAGS="$COMMON_FLAGS"
         
-        # Target fix
+        # Variables específicas para el build de Rust
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         
-        # Ejecución con doas inyectando LD y PATH
         doas env PATH="$PATH" \
              HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
-             LD="$LD" \
-             AR="$AR" \
-             NM="$NM" \
-             RANLIB="$RANLIB" \
              CFLAGS="$CFLAGS" \
              CXXFLAGS="$CXXFLAGS" \
              CARGO_BUILD_TARGET="$CARGO_BUILD_TARGET" \
@@ -124,8 +120,7 @@ jobs:
         export HOME=/root
         export CC=clang
         export CXX=clang++
-        export LD=ld.lld
-        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
+        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min)) -fuse-ld=lld"
         
         rm -rf libs/webassembly/include
         
@@ -133,14 +128,13 @@ jobs:
              HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
-             LD="$LD" \
              CFLAGS="$CFLAGS" \
              node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build failed"
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "No files found"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
