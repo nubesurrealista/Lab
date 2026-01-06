@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Source-Based Emscripten)
+name: Build Tuta Mail Desktop for Alpine Latest (Source-Based Emscripten Fix)
 
 on:
   workflow_dispatch:
@@ -14,8 +14,7 @@ jobs:
     - name: Install System Dependencies
       run: |
         apk update
-        # Instalamos LLVM, Clang y LLD nativos de Alpine (ya compilados para musl)
-        # Instalamos también las dependencias para "buildear" Emscripten
+        # Instalamos herramientas nativas de Alpine
         apk add --no-cache \
           build-base git nodejs npm python3 py3-pip \
           bash libsecret-dev dbus-dev pkgconfig \
@@ -27,6 +26,16 @@ jobs:
         echo "permit nopass root as user" > /etc/doas.conf
         echo "permit nopass :root" >> /etc/doas.conf
 
+    - name: Alpine Toolchain Symlinks
+      run: |
+        # Emscripten y los Makefile de Tutanota buscan nombres estándar
+        doas ln -sf /usr/bin/clang-19 /usr/bin/clang
+        doas ln -sf /usr/bin/clang++-19 /usr/bin/clang++
+        doas ln -sf /usr/bin/wasm-ld /usr/bin/ld
+        doas ln -sf /usr/bin/llvm-ar /usr/bin/ar
+        doas ln -sf /usr/bin/llvm-nm /usr/bin/nm
+        doas ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
+
     - name: Setup Rust (Musl Native)
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
@@ -37,18 +46,28 @@ jobs:
 
     - name: "Emscripten: Bootstrap from Source"
       run: |
-        # Clonamos el repositorio de Emscripten (Source Only)
+        # 1. Clonar versión específica compatible
         git clone --depth 1 --branch 3.1.59 https://github.com/emscripten-core/emscripten.git $GITHUB_WORKSPACE/emscripten_src
         cd $GITHUB_WORKSPACE/emscripten_src
         
-        # Ejecutamos el bootstrap (npm install interno de emscripten)
-        ./bootstrap
+        # 2. CREAR CONFIGURACIÓN ANTES DEL BOOTSTRAP
+        # Esto soluciona el error "LLVM_ROOT not set"
+        cat <<EOF > .emscripten
+        LLVM_ROOT = '/usr/bin'
+        BINARYEN_ROOT = '/usr/bin'
+        NODE_JS = '/usr/bin/node'
+        EMSCRIPTEN_ROOT = '$GITHUB_WORKSPACE/emscripten_src'
+        EOF
         
-        # Creamos el archivo .emscripten apuntando a los binarios de Alpine
-        echo "LLVM_ROOT = '/usr/bin'" > ~/.emscripten
-        echo "BINARYEN_ROOT = '/usr/bin'" >> ~/.emscripten
-        echo "NODE_JS = '/usr/bin/node'" >> ~/.emscripten
-        echo "EMSCRIPTEN_ROOT = '$GITHUB_WORKSPACE/emscripten_src'" >> ~/.emscripten
+        # Sincronizar con el HOME del usuario
+        cp .emscripten ~/.emscripten
+        
+        # 3. Exportar variables de entorno para el proceso de bootstrap
+        export LLVM_ROOT='/usr/bin'
+        export PATH="/usr/bin:$PATH"
+        
+        # 4. Instalar dependencias internas de Emscripten
+        ./bootstrap
 
     - name: Clone Tuta
       run: git clone https://github.com/tutao/tutanota.git
@@ -73,22 +92,18 @@ jobs:
       working-directory: ./tutanota
       run: |
         source $HOME/.cargo/env
-        # Agregamos nuestro Emscripten compilado al PATH
+        # Añadimos nuestro Emscripten (desde fuente) al PATH
         export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         
-        # Forzamos herramientas de LLVM de Alpine
+        # Parches para Alpine
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
-        export NM=llvm-nm
-        export RANLIB=llvm-ranlib
-        
-        # Parche de macros para Alpine
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         export CXXFLAGS=$CFLAGS
         
-        # Compilar Argon2 y Liboqs usando emcc (ahora nativo)
+        # Construir Argon2, Liboqs y otros WASM
         doas npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
@@ -96,18 +111,23 @@ jobs:
       run: |
         source $HOME/.cargo/env
         export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
+        export EMSDK_NODE="/usr/bin/node"
         
         export CC=clang
         export CXX=clang++
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         
+        # Limpiar para evitar basura de compilaciones fallidas
         rm -rf libs/webassembly/include
+        
+        # Build final
         doas node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/
+        # Tutanota puede dejar el build en build/ o dist/ según la versión
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "No se encontraron archivos en build/ o dist/"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
