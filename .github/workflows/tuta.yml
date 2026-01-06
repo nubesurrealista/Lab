@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine (Latest)
+name: Build Tuta Mail Desktop for Alpine Stable
 
 on:
   workflow_dispatch:
@@ -11,65 +11,46 @@ jobs:
       options: --user root
 
     steps:
-    - name: Install System Dependencies
+    - name: Install Build Tools
       run: |
         apk update
         apk add --no-cache \
-          build-base \
-          git \
-          nodejs \
-          npm \
-          rust \
-          cargo \
-          python3 \
-          bash \
-          binaryen \
-          emscripten \
-          libsecret-dev \
-          dbus-dev \
-          pkgconfig \
-          libx11-dev \
-          libxkbfile-dev
+          build-base git nodejs npm rust cargo python3 \
+          bash libsecret-dev dbus-dev pkgconfig \
+          libx11-dev libxkbfile-dev make g++ py3-setuptools
 
-    - name: Clone Repository
-      run: git clone https://github.com/tutao/tutanota.git
-
-    - name: Checkout Latest Tag
-      working-directory: ./tutanota
+    - name: Install EMSDK
       run: |
+        git clone https://github.com/emscripten-core/emsdk.git
+        cd emsdk
+        ./emsdk install 3.1.59
+        ./emsdk activate 3.1.59
+
+    - name: Clone and Setup Tuta
+      run: |
+        git clone https://github.com/tutao/tutanota.git
+        cd tutanota
         LATEST_TAG=$(git tag -l "tutanota-release-*" | sort -V | tail -n1)
-        echo "Versión detectada: $LATEST_TAG"
         git checkout $LATEST_TAG
-
-    - name: Initialize and Sync Submodules
-      working-directory: ./tutanota
-      run: |
-        git submodule init
-        git submodule sync --recursive
         git submodule update --init --recursive
+        npm ci
 
-    - name: Install Dependencies
-      working-directory: ./tutanota
-      run: npm ci
-
-    - name: Build Packages
-      working-directory: ./tutanota
-      run: npm run build-packages
-
-    - name: Build Desktop Client (Unpacked)
-      working-directory: ./tutanota
+    - name: Build Desktop
       run: |
-        # Usamos --unpacked para evitar errores con instaladores (deb/rpm) no compatibles con Alpine
+        cd tutanota
+        # Cargar entorno emscripten e iniciar build
+        source ../emsdk/emsdk_env.sh
+        npm run build-packages
+        rm -rf libs/webassembly/include
         node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
         mkdir -p export
-        # Tuta pone los binarios en build/desktop/linux-unpacked o similar
         cp -r tutanota/build/desktop/* export/
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: tuta-desktop-alpine-binaries
+        name: tuta-desktop-alpine
         path: export/
