@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Patched)
+name: Build Tuta Mail Desktop for Alpine Latest (Clang Fix)
 
 on:
   workflow_dispatch:
@@ -14,31 +14,22 @@ jobs:
     - name: Install System Dependencies
       run: |
         apk update
+        # Añadimos clang, lld y llvm
         apk add --no-cache \
           build-base git nodejs npm python3 \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ py3-setuptools \
-          openssh-client curl libc6-compat
+          openssh-client curl clang lld llvm
 
     - name: Setup Rust (Dual Target)
       run: |
-        # Instalamos rustup en modo silencioso y añadimos al PATH globalmente
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-        
-        # Hacemos disponible cargo para los siguientes pasos
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        
-        # IMPORTANTE: Cargamos el entorno aquí mismo para usarlo en este bloque
         source $HOME/.cargo/env
         
-        # 1. Instalamos el target nativo de Alpine (MUSL)
+        # Necesitamos ambos targets para engañar a napi-rs
         rustup target add x86_64-unknown-linux-musl
-        
-        # 2. Instalamos el target GNU (GLIBC)
-        # Esto soluciona el error "can't find crate for core" cuando napi intenta compilar por defecto
         rustup target add x86_64-unknown-linux-gnu
-        
-        # Forzamos MUSL como default
         rustup default stable-x86_64-unknown-linux-musl
 
     - name: Install EMSDK
@@ -68,42 +59,43 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (The Fix)
+    - name: Build Tuta Packages (Compiler Fix)
       working-directory: ./tutanota
       run: |
-        # FIX 1: EMSDK Sourcing Correcto
-        # Entramos, cargamos el entorno y volvemos. Así no falla la ruta relativa.
-        cd ../emsdk
-        source ./emsdk_env.sh
-        cd ../tutanota
+        # 1. Setup Entorno EMSDK
+        cd ../emsdk && source ./emsdk_env.sh && cd ../tutanota
         
-        # FIX 2: Variables de Rust
+        # 2. Setup Rust
         source $HOME/.cargo/env
         
-        # Le decimos a Cargo explícitamente: "Compila para Alpine (musl)"
+        # 3. EL PARCHE MAESTRO:
+        # Usamos Clang en lugar de GCC
+        export CC=clang
+        export CXX=clang++
+        export AR=llvm-ar
+        
+        # Definimos manualmente la macro que falta en Alpine (__GNUC_PREREQ)
+        # Esto soluciona el error "missing binary operator"
+        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
+        export CXXFLAGS=$CFLAGS
+        
+        # Variables de Rust para compilar estático (musl)
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
-        
-        # Flags para evitar enlaces dinámicos rotos
         export RUSTFLAGS="-C target-feature=-crt-static"
-        
-        # FIX 3: Engañar a NAPI/Node
-        # A veces node-gyp/napi ignoran la variable CARGO_BUILD_TARGET si detectan linux-x64
-        # Esto ayuda a que CC use el compilador correcto
-        export CC=gcc
-        export CXX=g++
         
         npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        # Repetimos la carga de entorno para este paso
-        cd ../emsdk
-        source ./emsdk_env.sh
-        cd ../tutanota
+        cd ../emsdk && source ./emsdk_env.sh && cd ../tutanota
         source $HOME/.cargo/env
         
+        # Mantenemos las banderas para este paso también
+        export CC=clang
+        export CXX=clang++
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
+        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         
         rm -rf libs/webassembly/include
         node desktop --custom-desktop-release --unpacked
