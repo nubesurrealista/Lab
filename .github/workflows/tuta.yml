@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest
+name: Build Tuta Mail Desktop for Alpine Latest (Target Fixed)
 
 on:
   workflow_dispatch:
@@ -15,19 +15,19 @@ jobs:
       run: |
         apk update
         apk add --no-cache \
-          build-base git nodejs npm rust cargo python3 \
+          build-base git nodejs npm python3 \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ py3-setuptools \
-          openssh-client rustup
+          openssh-client curl rustup
 
-    - name: Fix Rust Target for Alpine
+    - name: Setup Rust Environment
       run: |
-        # Añadimos los componentes de Rust necesarios para compilar en Linux
-        rustup-init -y
+        rustup-init -y --default-toolchain stable --profile minimal
         source $HOME/.cargo/env
         rustup target add x86_64-unknown-linux-musl
-        # Creamos un enlace para que el sistema encuentre el target que Tuta pide
-        ln -s /usr/bin/gcc /usr/bin/x86_64-unknown-linux-gnu-gcc || true
+        # Forzamos que este sea el target por defecto para evitar que busque GNU
+        rustup default stable-x86_64-unknown-linux-musl
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install EMSDK
       run: |
@@ -36,34 +36,28 @@ jobs:
         ./emsdk install 3.1.59
         ./emsdk activate 3.1.59
 
-    - name: Clone Tuta
-      run: git clone https://github.com/tutao/tutanota.git
-
-    - name: Checkout Latest Desktop Tag
-      working-directory: ./tutanota
+    - name: Clone and Setup Tuta
       run: |
+        git clone https://github.com/tutao/tutanota.git
+        cd tutanota
         LATEST_TAG=$(git tag -l | grep "tutanota-desktop-release-" | sort -V | tail -n1)
-        echo "Versión Desktop detectada: $LATEST_TAG"
         git checkout "$LATEST_TAG"
-
-    - name: Initialize Submodules
-      working-directory: ./tutanota
-      run: git submodule update --init --recursive
-
-    - name: Install NPM Dependencies
-      working-directory: ./tutanota
-      run: |
+        git submodule update --init --recursive
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
     - name: Build Tuta Packages
       working-directory: ./tutanota
       run: |
-        # Corregimos la llamada a EMSDK usando la ruta absoluta
-        EMSDK_PATH=$(realpath ../emsdk)
-        cd $EMSDK_PATH && ./emsdk activate 3.1.59 && source ./emsdk_env.sh && cd -
+        # Configurar EMSDK
+        export EMSDK_QUIET=1
+        source $(realpath ../emsdk/emsdk_env.sh)
         
-        # Exportamos variables de Rust para que use musl (nativo de Alpine)
+        # Configurar Rust para Alpine
+        source $HOME/.cargo/env
+        
+        # VARIABLES CRÍTICAS: Forzamos a napi-rs y cargo a usar MUSL
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         export RUSTFLAGS="-C target-feature=-crt-static"
         
         npm run build-packages
@@ -71,8 +65,9 @@ jobs:
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        EMSDK_PATH=$(realpath ../emsdk)
-        cd $EMSDK_PATH && source ./emsdk_env.sh && cd -
+        source $(realpath ../emsdk/emsdk_env.sh)
+        source $HOME/.cargo/env
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         
         rm -rf libs/webassembly/include
         node desktop --custom-desktop-release --unpacked
