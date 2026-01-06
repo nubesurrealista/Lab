@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Target Fixed)
+name: Build Tuta Mail Desktop for Alpine Latest (Patched)
 
 on:
   workflow_dispatch:
@@ -18,16 +18,28 @@ jobs:
           build-base git nodejs npm python3 \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ py3-setuptools \
-          openssh-client curl rustup
+          openssh-client curl libc6-compat
 
-    - name: Setup Rust Environment
+    - name: Setup Rust (Dual Target)
       run: |
-        rustup-init -y --default-toolchain stable --profile minimal
-        source $HOME/.cargo/env
-        rustup target add x86_64-unknown-linux-musl
-        # Forzamos que este sea el target por defecto para evitar que busque GNU
-        rustup default stable-x86_64-unknown-linux-musl
+        # Instalamos rustup en modo silencioso y añadimos al PATH globalmente
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+        
+        # Hacemos disponible cargo para los siguientes pasos
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+        # IMPORTANTE: Cargamos el entorno aquí mismo para usarlo en este bloque
+        source $HOME/.cargo/env
+        
+        # 1. Instalamos el target nativo de Alpine (MUSL)
+        rustup target add x86_64-unknown-linux-musl
+        
+        # 2. Instalamos el target GNU (GLIBC)
+        # Esto soluciona el error "can't find crate for core" cuando napi intenta compilar por defecto
+        rustup target add x86_64-unknown-linux-gnu
+        
+        # Forzamos MUSL como default
+        rustup default stable-x86_64-unknown-linux-musl
 
     - name: Install EMSDK
       run: |
@@ -36,37 +48,61 @@ jobs:
         ./emsdk install 3.1.59
         ./emsdk activate 3.1.59
 
-    - name: Clone and Setup Tuta
+    - name: Clone Tuta
+      run: git clone https://github.com/tutao/tutanota.git
+
+    - name: Checkout Latest Desktop Tag
+      working-directory: ./tutanota
       run: |
-        git clone https://github.com/tutao/tutanota.git
-        cd tutanota
         LATEST_TAG=$(git tag -l | grep "tutanota-desktop-release-" | sort -V | tail -n1)
+        echo "Versión Desktop detectada: $LATEST_TAG"
         git checkout "$LATEST_TAG"
-        git submodule update --init --recursive
+
+    - name: Initialize Submodules
+      working-directory: ./tutanota
+      run: git submodule update --init --recursive
+
+    - name: Install NPM Dependencies
+      working-directory: ./tutanota
+      run: |
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages
+    - name: Build Tuta Packages (The Fix)
       working-directory: ./tutanota
       run: |
-        # Configurar EMSDK
-        export EMSDK_QUIET=1
-        source $(realpath ../emsdk/emsdk_env.sh)
+        # FIX 1: EMSDK Sourcing Correcto
+        # Entramos, cargamos el entorno y volvemos. Así no falla la ruta relativa.
+        cd ../emsdk
+        source ./emsdk_env.sh
+        cd ../tutanota
         
-        # Configurar Rust para Alpine
+        # FIX 2: Variables de Rust
         source $HOME/.cargo/env
         
-        # VARIABLES CRÍTICAS: Forzamos a napi-rs y cargo a usar MUSL
+        # Le decimos a Cargo explícitamente: "Compila para Alpine (musl)"
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
+        
+        # Flags para evitar enlaces dinámicos rotos
         export RUSTFLAGS="-C target-feature=-crt-static"
+        
+        # FIX 3: Engañar a NAPI/Node
+        # A veces node-gyp/napi ignoran la variable CARGO_BUILD_TARGET si detectan linux-x64
+        # Esto ayuda a que CC use el compilador correcto
+        export CC=gcc
+        export CXX=g++
         
         npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        source $(realpath ../emsdk/emsdk_env.sh)
+        # Repetimos la carga de entorno para este paso
+        cd ../emsdk
+        source ./emsdk_env.sh
+        cd ../tutanota
         source $HOME/.cargo/env
+        
         export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         
         rm -rf libs/webassembly/include
