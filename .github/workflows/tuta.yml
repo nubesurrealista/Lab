@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Full Toolchain Fix)
+name: Build Tuta Mail Desktop for Alpine Latest (Native Toolchain)
 
 on:
   workflow_dispatch:
@@ -13,22 +13,23 @@ jobs:
     steps:
     - name: Install System Dependencies
       run: |
+        # Habilitamos el repositorio community para tener acceso a rust y emscripten (si existiera)
+        echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
         apk update
         apk add --no-cache \
           build-base git nodejs npm python3 py3-pip \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ \
-          openssh-client curl clang19 lld19 llvm19 binaryen doas
+          openssh-client curl clang19 lld19 llvm19 binaryen doas \
+          rust cargo  # Instalación nativa de Rust
 
     - name: Configure doas
       run: |
-        # Permitimos que root y el usuario hereden el PATH y variables críticas
         echo "permit nopass keepenv root as user" > /etc/doas.conf
         echo "permit nopass keepenv :root" >> /etc/doas.conf
 
     - name: Alpine Toolchain Symlinks
       run: |
-        # Enlaces para Clang y LLVM
         ln -sf /usr/bin/clang-19 /usr/bin/clang
         ln -sf /usr/bin/clang++-19 /usr/bin/clang++
         ln -sf /usr/bin/wasm-ld /usr/bin/ld
@@ -36,21 +37,11 @@ jobs:
         ln -sf /usr/bin/llvm-nm /usr/bin/nm
         ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
 
-    - name: Setup Rust (System-Wide)
-      run: |
-        # Instalamos Rust y lo movemos a /usr para que sea visible sin cargar archivos .env
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-        # Mover binarios al PATH estándar de Alpine
-        cp -r /root/.cargo/bin/* /usr/bin/
-        rustup target add x86_64-unknown-linux-musl
-        rustup default stable-x86_64-unknown-linux-musl
-
     - name: "Emscripten: Bootstrap from Source"
       run: |
         git clone --depth 1 --branch 3.1.59 https://github.com/emscripten-core/emscripten.git $GITHUB_WORKSPACE/emscripten_src
         cd $GITHUB_WORKSPACE/emscripten_src
         
-        # Crear config inicial
         cat <<EOF > .emscripten
         LLVM_ROOT = '/usr/bin'
         BINARYEN_ROOT = '/usr/bin'
@@ -82,28 +73,26 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (Cargo & Emscripten Fix)
+    - name: Build Tuta Packages (Native Fix)
       working-directory: ./tutanota
       run: |
-        # Variables de entorno para el build
+        # Ya no necesitamos source de cargo/env porque rust está en /usr/bin
         export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
-        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         
-        # Macro para compatibilidad de headers en Alpine
+        # Flags para Alpine
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         export CXXFLAGS=$CFLAGS
         
-        # Usamos doas con las variables inyectadas explícitamente para evitar que npm pierda el rastro
+        # Ejecutar build
         doas env PATH="$PATH" \
              CC="$CC" \
              CXX="$CXX" \
              CFLAGS="$CFLAGS" \
              CXXFLAGS="$CXXFLAGS" \
-             CARGO_BUILD_TARGET="$CARGO_BUILD_TARGET" \
              npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
@@ -125,7 +114,7 @@ jobs:
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build no encontrado"
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "No files found"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
