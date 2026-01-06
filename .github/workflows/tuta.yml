@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Native Toolchain)
+name: Build Tuta Mail Desktop for Alpine Latest (Rustup Fix)
 
 on:
   workflow_dispatch:
@@ -13,15 +13,12 @@ jobs:
     steps:
     - name: Install System Dependencies
       run: |
-        # Habilitamos el repositorio community para tener acceso a rust y emscripten (si existiera)
-        echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
         apk update
         apk add --no-cache \
           build-base git nodejs npm python3 py3-pip \
           bash libsecret-dev dbus-dev pkgconfig \
           libx11-dev libxkbfile-dev make g++ \
-          openssh-client curl clang19 lld19 llvm19 binaryen doas \
-          rust cargo  # Instalación nativa de Rust
+          openssh-client curl clang19 lld19 llvm19 binaryen doas
 
     - name: Configure doas
       run: |
@@ -34,8 +31,21 @@ jobs:
         ln -sf /usr/bin/clang++-19 /usr/bin/clang++
         ln -sf /usr/bin/wasm-ld /usr/bin/ld
         ln -sf /usr/bin/llvm-ar /usr/bin/ar
-        ln -sf /usr/bin/llvm-nm /usr/bin/nm
-        ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
+
+    - name: Setup Rustup (Custom Fix for Alpine)
+      run: |
+        # Definimos HOME explícitamente para evitar el conflicto euid/HOME
+        export HOME=/root
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+        
+        # Enlazamos los binarios a /usr/bin inmediatamente para que sean universales
+        ln -sf /root/.cargo/bin/* /usr/bin/
+        
+        source /root/.cargo/env
+        # Instalamos los targets necesarios que el apk no permite
+        rustup target add x86_64-unknown-linux-musl
+        rustup target add x86_64-unknown-linux-gnu
+        rustup default stable-x86_64-unknown-linux-musl
 
     - name: "Emscripten: Bootstrap from Source"
       run: |
@@ -73,32 +83,39 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (Native Fix)
+    - name: Build Tuta Packages (Native Emscripten & Multi-Target Rust)
       working-directory: ./tutanota
       run: |
-        # Ya no necesitamos source de cargo/env porque rust está en /usr/bin
-        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
+        # Re-aseguramos el PATH incluyendo el Emscripten de fuente y Rustup
+        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
+        export HOME=/root
+        
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
         
-        # Flags para Alpine
+        # Flags para compatibilidad en Alpine
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         export CXXFLAGS=$CFLAGS
         
-        # Ejecutar build
+        # Forzar target musl pero con disponibilidad de core gnu
+        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
+        
         doas env PATH="$PATH" \
+             HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
              CFLAGS="$CFLAGS" \
              CXXFLAGS="$CXXFLAGS" \
+             CARGO_BUILD_TARGET="$CARGO_BUILD_TARGET" \
              npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
+        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
+        export HOME=/root
         export CC=clang
         export CXX=clang++
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
@@ -106,6 +123,7 @@ jobs:
         rm -rf libs/webassembly/include
         
         doas env PATH="$PATH" \
+             HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
              CFLAGS="$CFLAGS" \
@@ -114,7 +132,7 @@ jobs:
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "No files found"
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build no encontrado"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
