@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Linker & Target Fix)
+name: Build Tuta Mail Desktop for Alpine Latest (LLVM Toolchain Fix)
 
 on:
   workflow_dispatch:
@@ -26,15 +26,19 @@ jobs:
         echo "permit nopass keepenv root as user" > /etc/doas.conf
         echo "permit nopass keepenv :root" >> /etc/doas.conf
 
-    - name: Alpine Toolchain Symlinks (Total Fix)
+    - name: Alpine Toolchain Symlinks (Forced & Absolute)
       run: |
-        # Enlaces prioritarios
+        # LLVM 19 binaries are often in /usr/lib/llvm19/bin/
+        # We ensure they are visible in /usr/bin for cc-rs
+        for tool in ar nm ranlib objcopy strip; do
+          ln -sf /usr/bin/llvm-$tool-19 /usr/bin/llvm-$tool
+          ln -sf /usr/bin/llvm-$tool-19 /usr/bin/$tool
+        done
+        
         ln -sf /usr/bin/clang-19 /usr/bin/clang
         ln -sf /usr/bin/clang++-19 /usr/bin/clang++
         ln -sf /usr/bin/ld.lld /usr/bin/ld
-        ln -sf /usr/bin/llvm-ar /usr/bin/ar
-        ln -sf /usr/bin/llvm-nm /usr/bin/nm
-        ln -sf /usr/bin/llvm-ranlib /usr/bin/ranlib
+        ln -sf /usr/bin/lld-19 /usr/bin/lld
 
     - name: Setup Rustup (Multi-Target Alpine)
       run: |
@@ -80,47 +84,51 @@ jobs:
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (AWS-LC Linker Fix)
+    - name: Build Tuta Packages (CC-RS Toolchain Fix)
       working-directory: ./tutanota
       run: |
-        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
+        export PATH="/usr/lib/llvm19/bin:/usr/bin:/root/.cargo/bin:$GITHUB_WORKSPACE/emscripten_src:$PATH"
         export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         export HOME=/root
         
-        # DEFINICIÓN DE HERRAMIENTAS
+        # Variables de herramientas para Rust y C
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
         export NM=llvm-nm
         export RANLIB=llvm-ranlib
         
-        # PARCHE CRÍTICO PARA AWS-LC-SYS
-        # -fuse-ld=lld obliga a clang a usar lld sin buscar el binario 'ld' en rutas oscuras
-        # Incluimos el fix de compatibilidad de headers de Alpine
-        COMMON_FLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min)) -fuse-ld=lld"
-        export CFLAGS="$COMMON_FLAGS"
-        export CXXFLAGS="$COMMON_FLAGS"
+        # Flags para evitar errores de linker y pre-requisitos de GCC
+        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
+        export CXXFLAGS="$CFLAGS"
         
-        # Variables específicas para el build de Rust
-        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
+        # OBLIGAR a cc-rs a encontrar llvm-ar
+        export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=clang
+        export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=clang
         
+        # IMPORTANTE: No usamos -fuse-ld=lld en CFLAGS porque 'ring' se queja 
+        # si se pasa a compilación de objetos C (Wunused-command-line-argument).
+        # Lo pasamos vía RUSTFLAGS si es necesario, pero el symlink ld -> ld.lld ya hace el trabajo.
+
         doas env PATH="$PATH" \
              HOME="$HOME" \
              CC="$CC" \
              CXX="$CXX" \
+             AR="$AR" \
+             NM="$NM" \
+             RANLIB="$RANLIB" \
              CFLAGS="$CFLAGS" \
              CXXFLAGS="$CXXFLAGS" \
-             CARGO_BUILD_TARGET="$CARGO_BUILD_TARGET" \
              npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:/root/.cargo/bin:$PATH"
+        export PATH="/usr/lib/llvm19/bin:/usr/bin:/root/.cargo/bin:$GITHUB_WORKSPACE/emscripten_src:$PATH"
         export HOME=/root
         export CC=clang
         export CXX=clang++
-        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min)) -fuse-ld=lld"
+        export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         
         rm -rf libs/webassembly/include
         
@@ -134,7 +142,7 @@ jobs:
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "No files found"
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/ 2>/dev/null || echo "Build no encontrado"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
