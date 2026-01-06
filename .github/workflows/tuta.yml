@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Stable
+name: Build Tuta Mail Desktop for Alpine Latest
 
 on:
   workflow_dispatch:
@@ -11,13 +11,14 @@ jobs:
       options: --user root
 
     steps:
-    - name: Install Build Tools
+    - name: Install System Dependencies
       run: |
         apk update
         apk add --no-cache \
           build-base git nodejs npm rust cargo python3 \
           bash libsecret-dev dbus-dev pkgconfig \
-          libx11-dev libxkbfile-dev make g++ py3-setuptools
+          libx11-dev libxkbfile-dev make g++ py3-setuptools \
+          openssh-client
 
     - name: Install EMSDK
       run: |
@@ -26,28 +27,45 @@ jobs:
         ./emsdk install 3.1.59
         ./emsdk activate 3.1.59
 
-    - name: Clone and Setup Tuta
-      run: |
-        git clone https://github.com/tutao/tutanota.git
-        cd tutanota
-        LATEST_TAG=$(git tag -l "tutanota-release-*" | sort -V | tail -n1)
-        git checkout $LATEST_TAG
-        git submodule update --init --recursive
-        npm ci
+    - name: Clone Tuta
+      run: git clone https://github.com/tutao/tutanota.git
 
-    - name: Build Desktop
+    - name: Checkout Latest Desktop Tag
+      working-directory: ./tutanota
       run: |
-        cd tutanota
-        # Cargar entorno emscripten e iniciar build
+        # Filtro estricto para solo tags de escritorio
+        LATEST_TAG=$(git tag -l | grep "tutanota-desktop-release-" | sort -V | tail -n1)
+        echo "Versión Desktop detectada: $LATEST_TAG"
+        git checkout "$LATEST_TAG"
+
+    - name: Initialize Submodules
+      working-directory: ./tutanota
+      run: git submodule update --init --recursive
+
+    - name: Install NPM Dependencies
+      working-directory: ./tutanota
+      run: |
+        git config --global url."https://github.com/".insteadOf git@github.com:
+        npm ci --legacy-peer-deps
+
+    - name: Build Tuta Packages
+      working-directory: ./tutanota
+      run: |
         source ../emsdk/emsdk_env.sh
         npm run build-packages
+
+    - name: Build Desktop Client (Unpacked)
+      working-directory: ./tutanota
+      run: |
+        source ../emsdk/emsdk_env.sh
         rm -rf libs/webassembly/include
         node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
         mkdir -p export
-        cp -r tutanota/build/desktop/* export/
+        # Copiamos el resultado de la compilación
+        cp -r tutanota/build/desktop/* export/ 2>/dev/null || cp -r tutanota/dist/desktop/* export/
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
