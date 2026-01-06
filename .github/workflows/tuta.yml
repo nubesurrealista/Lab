@@ -1,4 +1,4 @@
-name: Build Tuta Mail Desktop for Alpine Latest (Clang Fix)
+name: Build Tuta Mail Desktop for Alpine Latest (Source-Based Emscripten)
 
 on:
   workflow_dispatch:
@@ -14,30 +14,41 @@ jobs:
     - name: Install System Dependencies
       run: |
         apk update
-        # Añadimos clang, lld y llvm
+        # Instalamos LLVM, Clang y LLD nativos de Alpine (ya compilados para musl)
+        # Instalamos también las dependencias para "buildear" Emscripten
         apk add --no-cache \
-          build-base git nodejs npm python3 \
+          build-base git nodejs npm python3 py3-pip \
           bash libsecret-dev dbus-dev pkgconfig \
-          libx11-dev libxkbfile-dev make g++ py3-setuptools \
-          openssh-client curl clang lld llvm
+          libx11-dev libxkbfile-dev make g++ \
+          openssh-client curl clang19 lld19 llvm19 binaryen doas
 
-    - name: Setup Rust (Dual Target)
+    - name: Configure doas
+      run: |
+        echo "permit nopass root as user" > /etc/doas.conf
+        echo "permit nopass :root" >> /etc/doas.conf
+
+    - name: Setup Rust (Musl Native)
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         source $HOME/.cargo/env
-        
-        # Necesitamos ambos targets para engañar a napi-rs
         rustup target add x86_64-unknown-linux-musl
-        rustup target add x86_64-unknown-linux-gnu
         rustup default stable-x86_64-unknown-linux-musl
 
-    - name: Install EMSDK
+    - name: "Emscripten: Bootstrap from Source"
       run: |
-        git clone https://github.com/emscripten-core/emsdk.git
-        cd emsdk
-        ./emsdk install 3.1.59
-        ./emsdk activate 3.1.59
+        # Clonamos el repositorio de Emscripten (Source Only)
+        git clone --depth 1 --branch 3.1.59 https://github.com/emscripten-core/emscripten.git $GITHUB_WORKSPACE/emscripten_src
+        cd $GITHUB_WORKSPACE/emscripten_src
+        
+        # Ejecutamos el bootstrap (npm install interno de emscripten)
+        ./bootstrap
+        
+        # Creamos el archivo .emscripten apuntando a los binarios de Alpine
+        echo "LLVM_ROOT = '/usr/bin'" > ~/.emscripten
+        echo "BINARYEN_ROOT = '/usr/bin'" >> ~/.emscripten
+        echo "NODE_JS = '/usr/bin/node'" >> ~/.emscripten
+        echo "EMSCRIPTEN_ROOT = '$GITHUB_WORKSPACE/emscripten_src'" >> ~/.emscripten
 
     - name: Clone Tuta
       run: git clone https://github.com/tutao/tutanota.git
@@ -46,59 +57,52 @@ jobs:
       working-directory: ./tutanota
       run: |
         LATEST_TAG=$(git tag -l | grep "tutanota-desktop-release-" | sort -V | tail -n1)
-        echo "Versión Desktop detectada: $LATEST_TAG"
         git checkout "$LATEST_TAG"
 
     - name: Initialize Submodules
       working-directory: ./tutanota
       run: git submodule update --init --recursive
 
-    - name: Install NPM Dependencies
+    - name: Install Tuta NPM Dependencies
       working-directory: ./tutanota
       run: |
         git config --global url."https://github.com/".insteadOf git@github.com:
         npm ci --legacy-peer-deps
 
-    - name: Build Tuta Packages (Compiler Fix)
+    - name: Build Tuta Packages (Native Emscripten Fix)
       working-directory: ./tutanota
       run: |
-        # 1. Setup Entorno EMSDK
-        cd ../emsdk && source ./emsdk_env.sh && cd ../tutanota
-        
-        # 2. Setup Rust
         source $HOME/.cargo/env
+        # Agregamos nuestro Emscripten compilado al PATH
+        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
+        export EMSCRIPTEN="$GITHUB_WORKSPACE/emscripten_src"
         
-        # 3. EL PARCHE MAESTRO:
-        # Usamos Clang en lugar de GCC
+        # Forzamos herramientas de LLVM de Alpine
         export CC=clang
         export CXX=clang++
         export AR=llvm-ar
+        export NM=llvm-nm
+        export RANLIB=llvm-ranlib
         
-        # Definimos manualmente la macro que falta en Alpine (__GNUC_PREREQ)
-        # Esto soluciona el error "missing binary operator"
+        # Parche de macros para Alpine
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         export CXXFLAGS=$CFLAGS
         
-        # Variables de Rust para compilar estático (musl)
-        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
-        export RUSTFLAGS="-C target-feature=-crt-static"
-        
-        npm run build-packages
+        # Compilar Argon2 y Liboqs usando emcc (ahora nativo)
+        doas npm run build-packages
 
     - name: Build Desktop Client (Unpacked)
       working-directory: ./tutanota
       run: |
-        cd ../emsdk && source ./emsdk_env.sh && cd ../tutanota
         source $HOME/.cargo/env
+        export PATH="$GITHUB_WORKSPACE/emscripten_src:/usr/bin:$PATH"
         
-        # Mantenemos las banderas para este paso también
         export CC=clang
         export CXX=clang++
-        export CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
         export CFLAGS="-D__GNUC_PREREQ(maj,min)=((__GNUC__<<16)+__GNUC_MINOR__>=((maj)<<16)+(min))"
         
         rm -rf libs/webassembly/include
-        node desktop --custom-desktop-release --unpacked
+        doas node desktop --custom-desktop-release --unpacked
 
     - name: Prepare Export
       run: |
