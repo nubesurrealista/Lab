@@ -1,0 +1,73 @@
+name: Build Tuta Mail Web for Alpine (Latest)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 1' # Se ejecuta automáticamente cada lunes a media noche
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+    - name: Install System Dependencies
+      run: |
+        apk update
+        apk add --no-cache \
+          build-base \
+          git \
+          nodejs \
+          npm \
+          rust \
+          cargo \
+          python3 \
+          bash \
+          binaryen \
+          emscripten \
+          g++ \
+          make
+
+    - name: Clone and Checkout Latest Release
+      run: |
+        git clone https://github.com/tutao/tutanota.git
+        cd tutanota
+        # Obtener el nombre del tag de release más reciente
+        LATEST_TAG=$(git tag -l "tutanota-release-*" | sort -V | tail -n1)
+        echo "Haciendo checkout a la versión: $LATEST_TAG"
+        git checkout $LATEST_TAG
+
+    - name: Initialize Submodules
+      run: |
+        cd tutanota
+        git submodule init
+        git submodule sync --recursive
+        git submodule update --init --recursive
+
+    - name: Install Node Dependencies
+      run: |
+        cd tutanota
+        npm ci
+
+    - name: Build Tuta Packages
+      run: |
+        cd tutanota
+        npm run build-packages
+
+    - name: Compile WebApp (Production)
+      run: |
+        cd tutanota
+        # Limpieza preventiva para evitar errores de cabeceras WASM en Alpine
+        rm -rf libs/webassembly/include
+        node webapp prod
+
+    - name: Prepare Artifact
+      run: |
+        mkdir -p export
+        cp -r tutanota/build/* export/
+        
+    - name: Upload Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: tuta-mail-latest-alpine
+        path: export/
