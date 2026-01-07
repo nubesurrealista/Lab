@@ -38,7 +38,7 @@ jobs:
             cd "$GITHUB_WORKSPACE"
           }
 
-          build_core "https://github.com/libretro/QuickNES_Libretro" "quicknes" "."
+          build_core "https://github.com/libretro/QuickNES_Core.git" "quicknes" "."
           build_core "https://github.com/libretro/snes9x.git" "snes9x" "libretro"
           build_core "https://github.com/libretro/mgba.git" "mgba" "."
           build_core "https://github.com/libretro/Genesis-Plus-GX.git" "genesis" "." "Makefile.libretro"
