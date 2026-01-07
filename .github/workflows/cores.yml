@@ -15,7 +15,7 @@ jobs:
             path: .
           - name: desmume2015
             repo: https://github.com/libretro/desmume2015.git
-            path: .
+            path: desmume
           - name: snes9x
             repo: https://github.com/libretro/snes9x.git
             path: libretro
