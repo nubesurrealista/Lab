@@ -58,7 +58,7 @@ jobs:
           cd "${{ matrix.name }}/${{ matrix.path }}"
           
           if [ "${{ matrix.build_system }}" = "cmake" ]; then
-            cmake -B build -DCMAKE_BUILD_TYPE=Release
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             cmake --build build -j$(nproc)
             find build -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
           else
