@@ -49,21 +49,29 @@ jobs:
         run: |
           DEST_DIR="$(pwd)/output"
           mkdir -p "$DEST_DIR"
-          
           git clone --depth=1 "${{ matrix.repo }}" "${{ matrix.name }}"
           cd "${{ matrix.name }}/${{ matrix.path }}"
-          
           if [ -n "${{ matrix.makefile }}" ]; then
             make -f "${{ matrix.makefile }}" -j$(nproc)
           else
             make -j$(nproc)
           fi
-          
           find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
 
-      - name: Upload Core
+      - name: Upload Temporary Core
         uses: actions/upload-artifact@v4
         with:
-          name: Cores-Alpine-Stable-Pack
+          name: tmp-${{ matrix.name }}
           path: output/
-          overwrite: false
+          retention-days: 1
+
+  bundle-cores:
+    runs-on: ubuntu-latest
+    needs: build-cores
+    steps:
+      - name: Merge Artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: Cores-Alpine-Stable-Pack
+          pattern: tmp-*
+          delete-merged: true
