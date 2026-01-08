@@ -1,4 +1,4 @@
-name: Build Libretro Cores (Parallel Set)
+name: Build Libretro Cores (Alpine Musl)
 on:
   workflow_dispatch:
 
@@ -33,19 +33,23 @@ jobs:
           - name: prboom
             repo: https://github.com/libretro/libretro-prboom.git
             path: .
+          - name: melonds-ds
+            repo: https://github.com/JesseTG/melonds-ds.git
+            path: .
+            build_system: cmake
 
     steps:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
+          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev cmake extra-cmake-modules
 
       - name: Compile Core
         env:
           CC: clang
           CXX: clang++
-          CFLAGS: -O2 -march=core2 -pipe
-          CXXFLAGS: -O2 -march=core2 -pipe
+          CFLAGS: -O3 -march=core2 -pipe
+          CXXFLAGS: -O3 -march=core2 -pipe
         run: |
           DEST_DIR="$(pwd)/output"
           mkdir -p "$DEST_DIR"
@@ -53,16 +57,21 @@ jobs:
           git clone --depth=1 "${{ matrix.repo }}" "${{ matrix.name }}"
           cd "${{ matrix.name }}/${{ matrix.path }}"
           
-          if [ -n "${{ matrix.makefile }}" ]; then
-            make -f "${{ matrix.makefile }}" -j$(nproc)
+          if [ "${{ matrix.build_system }}" = "cmake" ]; then
+            cmake -B build -DCMAKE_BUILD_TYPE=Release
+            cmake --build build -j$(nproc)
+            find build -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
           else
-            make -j$(nproc)
+            if [ -n "${{ matrix.makefile }}" ]; then
+              make -f "${{ matrix.makefile }}" -j$(nproc)
+            else
+              make -j$(nproc)
+            fi
+            find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
           fi
-          
-          find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
 
       - name: Upload Core
         uses: actions/upload-artifact@v4
         with:
-          name: core-${{ matrix.name }}-alpine
+          name: core-${{ matrix.name }}-alpine-x86_64
           path: output/
