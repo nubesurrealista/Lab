@@ -10,12 +10,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: desmume-modern
+            repo: https://github.com/libretro/desmume.git
+            path: desmume/src/frontend/libretro
+            makefile: Makefile
           - name: quicknes
             repo: https://github.com/libretro/QuickNES_Core.git
             path: .
-          - name: desmume2015
-            repo: https://github.com/libretro/desmume2015.git
-            path: desmume
           - name: snes9x
             repo: https://github.com/libretro/snes9x.git
             path: libretro
@@ -33,16 +34,12 @@ jobs:
           - name: prboom
             repo: https://github.com/libretro/libretro-prboom.git
             path: .
-          - name: melonds-ds
-            repo: https://github.com/JesseTG/melonds-ds.git
-            path: .
-            build_system: cmake
 
     steps:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev cmake extra-cmake-modules
+          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
 
       - name: Compile Core
         env:
@@ -57,18 +54,13 @@ jobs:
           git clone --depth=1 "${{ matrix.repo }}" "${{ matrix.name }}"
           cd "${{ matrix.name }}/${{ matrix.path }}"
           
-          if [ "${{ matrix.build_system }}" = "cmake" ]; then
-            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-            cmake --build build -j$(nproc)
-            find build -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
+          if [ -n "${{ matrix.makefile }}" ]; then
+            make -f "${{ matrix.makefile }}" -j$(nproc)
           else
-            if [ -n "${{ matrix.makefile }}" ]; then
-              make -f "${{ matrix.makefile }}" -j$(nproc)
-            else
-              make -j$(nproc)
-            fi
-            find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
+            make -j$(nproc)
           fi
+          
+          find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
 
       - name: Upload Core
         uses: actions/upload-artifact@v4
