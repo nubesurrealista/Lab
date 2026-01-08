@@ -1,4 +1,4 @@
-name: Build Libretro Cores (Alpine Musl)
+name: Build Libretro Cores (Parallel Set)
 on:
   workflow_dispatch:
 
@@ -10,13 +10,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: desmume-modern
-            repo: https://github.com/libretro/desmume.git
-            path: desmume/src/frontend/libretro
-            makefile: Makefile
           - name: quicknes
             repo: https://github.com/libretro/QuickNES_Core.git
             path: .
+          - name: desmume2015
+            repo: https://github.com/libretro/desmume2015.git
+            path: desmume
           - name: snes9x
             repo: https://github.com/libretro/snes9x.git
             path: libretro
@@ -39,14 +38,14 @@ jobs:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev libpcap-dev
+          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
 
       - name: Compile Core
         env:
           CC: clang
           CXX: clang++
-          CFLAGS: -O3 -march=core2 -pipe
-          CXXFLAGS: -O3 -march=core2 -pipe
+          CFLAGS: -O2 -march=core2 -pipe
+          CXXFLAGS: -O2 -march=core2 -pipe
         run: |
           DEST_DIR="$(pwd)/output"
           mkdir -p "$DEST_DIR"
@@ -54,9 +53,7 @@ jobs:
           git clone --depth=1 "${{ matrix.repo }}" "${{ matrix.name }}"
           cd "${{ matrix.name }}/${{ matrix.path }}"
           
-          if [ "${{ matrix.name }}" = "desmume-modern" ]; then
-            make -f "${{ matrix.makefile }}" -j$(nproc) HAVE_OPENGL=0
-          elif [ -n "${{ matrix.makefile }}" ]; then
+          if [ -n "${{ matrix.makefile }}" ]; then
             make -f "${{ matrix.makefile }}" -j$(nproc)
           else
             make -j$(nproc)
@@ -67,5 +64,5 @@ jobs:
       - name: Upload Core
         uses: actions/upload-artifact@v4
         with:
-          name: core-${{ matrix.name }}-alpine-x86_64
+          name: core-${{ matrix.name }}-alpine
           path: output/
