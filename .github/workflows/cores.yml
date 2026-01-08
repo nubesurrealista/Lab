@@ -39,7 +39,7 @@ jobs:
       - name: Install Build Tools and Libs
         run: |
           apk update
-          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev
+          apk add build-base clang lld git mesa-dev alsa-lib-dev zlib-dev libpng-dev libpcap-dev
 
       - name: Compile Core
         env:
@@ -54,7 +54,9 @@ jobs:
           git clone --depth=1 "${{ matrix.repo }}" "${{ matrix.name }}"
           cd "${{ matrix.name }}/${{ matrix.path }}"
           
-          if [ -n "${{ matrix.makefile }}" ]; then
+          if [ "${{ matrix.name }}" = "desmume-modern" ]; then
+            make -f "${{ matrix.makefile }}" -j$(nproc) HAVE_OPENGL=0
+          elif [ -n "${{ matrix.makefile }}" ]; then
             make -f "${{ matrix.makefile }}" -j$(nproc)
           else
             make -j$(nproc)
