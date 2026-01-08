@@ -20,8 +20,9 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-          CFLAGS: -O2 -march=core2 -pipe -flto=thin
-          LDFLAGS: -fuse-ld=lld -flto=thin
+          CFLAGS: -O3 -march=core2 -pipe -flto=thin
+          CXXFLAGS: -O3 -march=core2 -pipe -flto=thin
+          LDFLAGS: -fuse-ld=lld -flto=thin -Wl,--as-needed -Wl,--gc-sections
         run: |
           LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
           ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
