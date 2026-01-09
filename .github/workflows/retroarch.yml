@@ -10,7 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          apk add build-base clang lld git curl jq tar xz \
+          apk add build-base clang lld git curl jq tar xz pkgconf \
                   mesa-dev alsa-lib-dev freetype-dev libx11-dev \
                   libxinerama-dev libxxf86vm-dev libxkbcommon-dev \
                   libxml2-dev libusb-dev eudev-dev sdl2-dev \
@@ -37,7 +37,7 @@ jobs:
                       --disable-networking --disable-networkgamepad --disable-netplaydiscovery \
                       --disable-online_updater --disable-update_cores --disable-update_assets \
                       --disable-discord --disable-cheevos \
-                      --enable-ffmpeg
+                      --enable-ffmpeg --disable-builtin-ffmpeg
           
           make -j$(nproc)
           strip --strip-unneeded retroarch
