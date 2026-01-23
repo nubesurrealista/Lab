@@ -1,4 +1,4 @@
-name: Waifu2x Telegram Live Session
+name: Waifu2x
 on: [workflow_dispatch]
 
 jobs:
@@ -7,12 +7,12 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y golang jq curl git file
+          sudo apt-get update > /dev/null
+          sudo apt-get install -y golang jq curl git file > /dev/null
 
       - name: Build Waifu2x-Go
         run: |
-          git clone https://github.com/ikawaha/waifu2x.go.git
+          git clone https://github.com/ikawaha/waifu2x.go.git > /dev/null 2>&1
           cd waifu2x.go
           go build -o waifu2x main.go
           sudo mv waifu2x /usr/local/bin/
@@ -32,17 +32,21 @@ jobs:
             -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
             -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
             -e TELEGRAM_LOCAL=1 \
-            aiogram/telegram-bot-api:latest
-          sleep 10
+            aiogram/telegram-bot-api:latest > /dev/null
+          sleep 5
 
-      - name: Live Processing Loop
+      - name: Process Image
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id=${TELEGRAM_CHAT_ID} \
+            -d text="🚀 Sesión iniciada. Puedes enviar la imagen ahora." > /dev/null
+
           LAST_UPDATE_ID=0
           END_TIME=$((SECONDS + 600))
-          echo "Bot activo. Esperando imágenes..."
+          echo "Bot activo. Esperando imagen..."
 
           while [ $SECONDS -lt $END_TIME ]; do
             RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${LAST_UPDATE_ID}&timeout=20")
@@ -56,47 +60,38 @@ jobs:
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // ""' | tr '[:upper:]' '[:lower:]')
 
               if [ ! -z "$FILE_ID" ] && [[ "$CAPTION" != *"✅"* ]]; then
-                echo "--- Nuevo archivo detectado ---"
+                echo "Imagen recibida. Preparando..."
                 
                 FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
                 RAW_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
-                echo "Ruta reportada por API: $RAW_PATH"
-
-                echo "Explorando archivos en volumen..."
-                sudo ls -R /tmp/telegram-data/
-
                 FILE_NAME=$(basename "$RAW_PATH")
                 FOUND_PATH=$(sudo find /tmp/telegram-data -name "$FILE_NAME" | head -n 1)
 
-                if [ -z "$FOUND_PATH" ]; then
-                  echo "ERROR: No se encontró el archivo $FILE_NAME en el volumen."
-                  continue
+                if [ ! -z "$FOUND_PATH" ]; then
+                  sudo cp "$FOUND_PATH" ./input_file
+                  sudo chown $USER:$USER ./input_file
+                  
+                  MIME_TYPE=$(file --mime-type -b ./input_file)
+                  EXT="jpg"; [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
+                  mv input_file "input.$EXT"
+
+                  MODE="anime"; NOISE="2"; SCALE="2.0"
+                  [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
+                  [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
+                  [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
+
+                  echo "Iniciando waifu2x ($MODE, s:$SCALE, n:$NOISE)..."
+                  waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
+
+                  echo "Enviando resultado a Telegram..."
+                  curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                    -F chat_id=${TELEGRAM_CHAT_ID} \
+                    -F document=@"output.png" \
+                    -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE" > /dev/null
+                  
+                  echo "Tarea completada con éxito."
+                  break
                 fi
-
-                echo "Archivo encontrado en: $FOUND_PATH"
-                sudo cp "$FOUND_PATH" ./input_file
-                sudo chown $USER:$USER ./input_file
-
-                MIME_TYPE=$(file --mime-type -b ./input_file)
-                EXT="jpg"
-                [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
-                mv input_file "input.$EXT"
-
-                MODE="anime"; NOISE="2"; SCALE="2.0"
-                [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
-                [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
-                [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
-
-                echo "Iniciando waifu2x: -m $MODE -s $SCALE -n $NOISE"
-                waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
-
-                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-                  -F chat_id=${TELEGRAM_CHAT_ID} \
-                  -F document=@"output.png" \
-                  -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE"
-
-                rm -f "input.$EXT" output.png
-                echo "--- Finalizado, esperando siguiente ---"
               fi
             fi
           done
@@ -104,6 +99,6 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker stop telegram-bot-api || true
-          docker rm telegram-bot-api || true
+          docker stop telegram-bot-api > /dev/null 2>&1
+          docker rm telegram-bot-api > /dev/null 2>&1
           sudo rm -rf /tmp/telegram-data
