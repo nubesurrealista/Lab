@@ -22,7 +22,7 @@ jobs:
       - name: Build Binary
         run: |
           mkdir -p bin
-          go build -o bin/waifu2x ./cmd/waifu2x/main.go
+          go build -o bin/waifu2x main.go
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
