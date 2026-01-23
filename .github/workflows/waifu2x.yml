@@ -1,0 +1,31 @@
+name: Build Waifu2x-Go Alpine 3.23
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:3.23
+    steps:
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add go git build-base
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ikawaha/waifu2x.go
+
+      - name: Run Benchmarks
+        run: go test -v ./engine -bench . -run ^$
+
+      - name: Build Binary
+        run: |
+          mkdir -p bin
+          go build -o bin/waifu2x ./cmd/waifu2x/main.go
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: waifu2x-go-alpine-3.23
+          path: bin/waifu2x
