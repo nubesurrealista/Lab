@@ -25,6 +25,7 @@ jobs:
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
           mkdir -p /tmp/telegram-data
+          chmod 777 /tmp/telegram-data
           docker run -d --name telegram-bot-api \
             -p 8081:8081 \
             -v /tmp/telegram-data:/var/lib/telegram-bot-api \
@@ -55,17 +56,30 @@ jobs:
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // ""' | tr '[:upper:]' '[:lower:]')
 
               if [ ! -z "$FILE_ID" ] && [[ "$CAPTION" != *"✅"* ]]; then
+                echo "--- Nuevo archivo detectado ---"
+                
                 FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
                 RAW_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
-                
-                CLEAN_PATH=$(echo "$RAW_PATH" | rev | cut -d'/' -f1,2 | rev)
-                FULL_PATH="/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${CLEAN_PATH}"
-                
-                sudo cp "$FULL_PATH" ./input_file
+                echo "Ruta reportada por API: $RAW_PATH"
+
+                echo "Explorando archivos en volumen..."
+                sudo ls -R /tmp/telegram-data/
+
+                FILE_NAME=$(basename "$RAW_PATH")
+                FOUND_PATH=$(sudo find /tmp/telegram-data -name "$FILE_NAME" | head -n 1)
+
+                if [ -z "$FOUND_PATH" ]; then
+                  echo "ERROR: No se encontró el archivo $FILE_NAME en el volumen."
+                  continue
+                fi
+
+                echo "Archivo encontrado en: $FOUND_PATH"
+                sudo cp "$FOUND_PATH" ./input_file
                 sudo chown $USER:$USER ./input_file
 
                 MIME_TYPE=$(file --mime-type -b ./input_file)
-                EXT="jpg"; [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
+                EXT="jpg"
+                [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
                 mv input_file "input.$EXT"
 
                 MODE="anime"; NOISE="2"; SCALE="2.0"
@@ -73,6 +87,7 @@ jobs:
                 [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
                 [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
 
+                echo "Iniciando waifu2x: -m $MODE -s $SCALE -n $NOISE"
                 waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
 
                 curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
@@ -81,6 +96,7 @@ jobs:
                   -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE"
 
                 rm -f "input.$EXT" output.png
+                echo "--- Finalizado, esperando siguiente ---"
               fi
             fi
           done
