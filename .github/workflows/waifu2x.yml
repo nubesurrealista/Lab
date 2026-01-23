@@ -8,7 +8,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y go jq curl
+          sudo apt-get install -y golang jq curl
 
       - name: Install Waifu2x-Go
         run: |
@@ -73,4 +73,4 @@ jobs:
         run: |
           docker stop telegram-bot-api
           docker rm telegram-bot-api
-          rm -rf *
+          rm -f input_img output.png
