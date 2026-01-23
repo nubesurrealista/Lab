@@ -1,4 +1,4 @@
-name: Waifu2x Telegram Custom Params
+name: Waifu2x Telegram Live Session
 on: [workflow_dispatch]
 
 jobs:
@@ -34,50 +34,58 @@ jobs:
             aiogram/telegram-bot-api:latest
           sleep 10
 
-      - name: Execute Custom Upscale
+      - name: Live Processing Loop
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1")
-          UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id == ${TELEGRAM_CHAT_ID} and (.message.document != null or .message.photo != null))) | last")
-          
-          if [ "$UPDATE" == "null" ]; then
-            echo "No se encontró imagen."
-            exit 1
-          fi
+          LAST_UPDATE_ID=0
+          END_TIME=$((SECONDS + 600))
+          echo "Bot activo por 10 minutos. Esperando imágenes..."
 
-          FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id')
-          CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // ""' | tr '[:upper:]' '[:lower:]')
+          while [ $SECONDS -lt $END_TIME ]; do
+            RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${LAST_UPDATE_ID}&timeout=20")
+            
+            UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id | tostring == \"$TELEGRAM_CHAT_ID\")) | last")
 
-          MODE="anime"
-          NOISE="2"
-          SCALE="2.0"
+            if [ "$UPDATE" != "null" ] && [ "$UPDATE" != "" ]; then
+              UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
+              LAST_UPDATE_ID=$((UPDATE_ID + 1))
+              
+              FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id // empty')
+              CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // ""' | tr '[:upper:]' '[:lower:]')
 
-          [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
-          [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
-          [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
+              if [ ! -z "$FILE_ID" ] && [[ "$CAPTION" != *"✅"* ]]; then
+                echo "Procesando nueva solicitud..."
+                
+                MODE="anime"
+                NOISE="2"
+                SCALE="2.0"
 
-          FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
-          FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
+                [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
+                [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
+                [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
 
-          cp "/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}" ./input_file
-          
-          MIME_TYPE=$(file --mime-type -b ./input_file)
-          EXT="jpg"
-          [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
-          mv input_file "input.$EXT"
+                FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
+                FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
 
-          echo "Ejecutando: waifu2x -m $MODE -n $NOISE -s $SCALE"
-          waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
-          
-          curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-            -F chat_id=${TELEGRAM_CHAT_ID} \
-            -F document=@"output.png" \
-            -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE"
-          
-          UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
-          curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=$((UPDATE_ID + 1))" > /dev/null
+                cp "/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}" ./input_file
+                MIME_TYPE=$(file --mime-type -b ./input_file)
+                EXT="jpg"; [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
+                mv input_file "input.$EXT"
+
+                waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
+
+                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                  -F chat_id=${TELEGRAM_CHAT_ID} \
+                  -F document=@"output.png" \
+                  -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE"
+
+                rm -f "input.$EXT" output.png
+                echo "Listo. Esperando siguiente..."
+              fi
+            fi
+          done
 
       - name: Cleanup
         if: always()
@@ -85,4 +93,3 @@ jobs:
           docker stop telegram-bot-api
           docker rm telegram-bot-api
           rm -rf /tmp/telegram-data
-          rm -f input.jpg input.png output.png
