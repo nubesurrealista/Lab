@@ -49,9 +49,10 @@ jobs:
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // empty')
 
               if [ "$USER_ID" == "$TELEGRAM_CHAT_ID" ] && [[ "$CAPTION" != *"✅"* ]] && [ ! -z "$FILE_ID" ]; then
-                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendChatAction" -d chat_id=${TELEGRAM_CHAT_ID} -d action=upload_photo
+                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendChatAction" -d chat_id=${TELEGRAM_CHAT_ID} -d action=upload_document
                 
                 FILE_PATH=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}" | jq -r '.result.file_path')
+                
                 curl -o "input_img" "http://localhost:8081/file/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}"
                 
                 waifu2x -i input_img -o output.png -n 2 -s 2
@@ -59,10 +60,17 @@ jobs:
                 curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
                   -F chat_id=${TELEGRAM_CHAT_ID} \
                   -F document=@"output.png" \
-                  -F caption="✅ Upscale completado"
+                  -F caption="✅ Escalado finalizado"
                 
                 rm -f input_img output.png
               fi
             fi
             sleep 2
           done
+
+      - name: Final Cleanup
+        if: always()
+        run: |
+          docker stop telegram-bot-api
+          docker rm telegram-bot-api
+          rm -rf *
