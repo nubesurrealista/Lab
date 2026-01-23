@@ -18,6 +18,7 @@ jobs:
           sudo mv waifu2x /usr/local/bin/
           cd ..
           rm -rf waifu2x.go
+          waifu2x -h
 
       - name: Start Local Bot API
         env:
@@ -38,10 +39,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           END_TIME=$((SECONDS + 3600))
+          echo "Iniciando loop de procesamiento (1 hora)..."
           
           while [ $SECONDS -lt $END_TIME ]; do
             RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates")
-            UPDATE=$(echo "$RESPONSE" | jq -r '.result | map(select(.message.from.id == '${TELEGRAM_CHAT_ID}' and (.message.document != null or .message.photo != null))) | last')
+            
+            UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id == ${TELEGRAM_CHAT_ID} and (.message.document != null or .message.photo != null))) | last")
             
             if [ "$UPDATE" != "null" ] && [ "$UPDATE" != "" ]; then
               UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
@@ -49,23 +52,34 @@ jobs:
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // empty')
 
               if [[ "$CAPTION" != *"✅"* ]]; then
-                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendChatAction" -d chat_id=${TELEGRAM_CHAT_ID} -d action=upload_document
+                echo "--- Nuevo archivo detectado (Update ID: $UPDATE_ID) ---"
                 
-                FILE_PATH=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}" | jq -r '.result.file_path')
+                FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
+                FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
+                
+                echo "Descargando desde: $FILE_PATH"
                 curl -o "input_img" "http://localhost:8081/file/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}"
                 
-                waifu2x -i input_img -o output.png -n 2 -s 2
-                
-                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-                  -F chat_id=${TELEGRAM_CHAT_ID} \
-                  -F document=@"output.png" \
-                  -F caption="✅ Escalado finalizado"
-                
-                rm -f input_img output.png
-                curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=$((UPDATE_ID + 1))" > /dev/null
+                if [ -f "input_img" ]; then
+                  echo "Procesando con waifu2x (esto puede tardar según el tamaño)..."
+                  waifu2x -v -i input_img -o output.png -n 2 -s 2
+                  
+                  echo "Enviando resultado a Telegram..."
+                  curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                    -F chat_id=${TELEGRAM_CHAT_ID} \
+                    -F document=@"output.png" \
+                    -F caption="✅ Escalado finalizado"
+                  
+                  echo "Limpiando archivos temporales y confirmando update..."
+                  rm -f input_img output.png
+                  curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=$((UPDATE_ID + 1))" > /dev/null
+                  echo "Listo para el siguiente archivo."
+                else
+                  echo "Error: No se pudo descargar el archivo."
+                fi
               fi
             fi
-            sleep 1
+            sleep 2
           done
 
       - name: Final Cleanup
@@ -73,4 +87,3 @@ jobs:
         run: |
           docker stop telegram-bot-api
           docker rm telegram-bot-api
-          rm -f input_img output.png
