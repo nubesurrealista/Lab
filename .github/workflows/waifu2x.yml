@@ -37,22 +37,18 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          LAST_UPDATE_ID=0
           END_TIME=$((SECONDS + 3600))
           
           while [ $SECONDS -lt $END_TIME ]; do
-            RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${LAST_UPDATE_ID}&timeout=30")
-            UPDATE=$(echo "$RESPONSE" | jq -r '.result | last')
+            RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates")
+            UPDATE=$(echo "$RESPONSE" | jq -r '.result | map(select(.message.from.id == '${TELEGRAM_CHAT_ID}' and (.message.document != null or .message.photo != null))) | last')
             
-            if [ "$UPDATE" != "null" ]; then
+            if [ "$UPDATE" != "null" ] && [ "$UPDATE" != "" ]; then
               UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
-              LAST_UPDATE_ID=$((UPDATE_ID + 1))
-              
-              USER_ID=$(echo "$UPDATE" | jq -r '.message.from.id')
-              FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id // empty')
+              FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id')
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // empty')
 
-              if [ "$USER_ID" == "$TELEGRAM_CHAT_ID" ] && [[ "$CAPTION" != *"✅"* ]] && [ ! -z "$FILE_ID" ]; then
+              if [[ "$CAPTION" != *"✅"* ]]; then
                 curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendChatAction" -d chat_id=${TELEGRAM_CHAT_ID} -d action=upload_document
                 
                 FILE_PATH=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}" | jq -r '.result.file_path')
@@ -66,9 +62,10 @@ jobs:
                   -F caption="✅ Escalado finalizado"
                 
                 rm -f input_img output.png
+                curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=$((UPDATE_ID + 1))" > /dev/null
               fi
             fi
-            sleep 2
+            sleep 1
           done
 
       - name: Final Cleanup
