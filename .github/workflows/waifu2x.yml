@@ -41,11 +41,10 @@ jobs:
         run: |
           LAST_UPDATE_ID=0
           END_TIME=$((SECONDS + 600))
-          echo "Bot activo por 10 minutos. Esperando imágenes..."
+          echo "Bot activo. Esperando imágenes..."
 
           while [ $SECONDS -lt $END_TIME ]; do
             RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${LAST_UPDATE_ID}&timeout=20")
-            
             UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id | tostring == \"$TELEGRAM_CHAT_ID\")) | last")
 
             if [ "$UPDATE" != "null" ] && [ "$UPDATE" != "" ]; then
@@ -56,23 +55,22 @@ jobs:
               CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // ""' | tr '[:upper:]' '[:lower:]')
 
               if [ ! -z "$FILE_ID" ] && [[ "$CAPTION" != *"✅"* ]]; then
-                echo "Procesando nueva solicitud..."
-                
-                MODE="anime"
-                NOISE="2"
-                SCALE="2.0"
-
-                [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
-                [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
-                [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
-
                 FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
-                FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
+                RAW_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
+                
+                CLEAN_PATH=$(echo "$RAW_PATH" | sed "s|/var/lib/telegram-bot-api/bot${TELEGRAM_BOT_TOKEN}/||")
+                FULL_PATH="/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${CLEAN_PATH}"
+                
+                cp "$FULL_PATH" ./input_file
 
-                cp "/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}" ./input_file
                 MIME_TYPE=$(file --mime-type -b ./input_file)
                 EXT="jpg"; [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
                 mv input_file "input.$EXT"
+
+                MODE="anime"; NOISE="2"; SCALE="2.0"
+                [[ "$CAPTION" == *"photo"* ]] && MODE="photo"
+                [[ "$CAPTION" =~ -s\ ([0-9.]+) ]] && SCALE="${BASH_REMATCH[1]}"
+                [[ "$CAPTION" =~ -n\ ([0-3]) ]] && NOISE="${BASH_REMATCH[1]}"
 
                 waifu2x -v -i "input.$EXT" -o output.png -m "$MODE" -n "$NOISE" -s "$SCALE"
 
@@ -82,7 +80,6 @@ jobs:
                   -F caption="✅ Modo: $MODE | Ruido: $NOISE | Escala: $SCALE"
 
                 rm -f "input.$EXT" output.png
-                echo "Listo. Esperando siguiente..."
               fi
             fi
           done
