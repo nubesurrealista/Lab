@@ -1,31 +1,68 @@
-name: Build Waifu2x-Go Alpine 3.23
+name: Waifu2x Telegram Bot Session
 on: [workflow_dispatch]
 
 jobs:
-  build:
+  process:
     runs-on: ubuntu-latest
-    container: alpine:3.23
     steps:
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          apk update
-          apk add go git build-base
+          sudo apt-get update
+          sudo apt-get install -y go jq curl
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          repository: ikawaha/waifu2x.go
-
-      - name: Run Benchmarks
-        run: go test -v ./engine -bench . -run ^$
-
-      - name: Build Binary
+      - name: Install Waifu2x-Go
         run: |
-          mkdir -p bin
-          go build -o bin/waifu2x main.go
+          go install github.com/ikawaha/waifu2x.go/cmd/waifu2x@latest
+          sudo cp $(go env GOPATH)/bin/waifu2x /usr/local/bin/
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: waifu2x-go-alpine-3.23
-          path: bin/waifu2x
+      - name: Start Local Bot API
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          docker run -d --name telegram-bot-api \
+            -p 8081:8081 \
+            -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
+            -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
+            -e TELEGRAM_LOCAL=1 \
+            aiogram/telegram-bot-api:latest
+          sleep 10
+
+      - name: Processing Loop
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          LAST_UPDATE_ID=0
+          END_TIME=$((SECONDS + 3600))
+          
+          while [ $SECONDS -lt $END_TIME ]; do
+            RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${LAST_UPDATE_ID}&timeout=30")
+            UPDATE=$(echo "$RESPONSE" | jq -r '.result | last')
+            
+            if [ "$UPDATE" != "null" ]; then
+              UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
+              LAST_UPDATE_ID=$((UPDATE_ID + 1))
+              
+              USER_ID=$(echo "$UPDATE" | jq -r '.message.from.id')
+              FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id // empty')
+              CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // empty')
+
+              if [ "$USER_ID" == "$TELEGRAM_CHAT_ID" ] && [[ "$CAPTION" != *"✅"* ]] && [ ! -z "$FILE_ID" ]; then
+                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendChatAction" -d chat_id=${TELEGRAM_CHAT_ID} -d action=upload_photo
+                
+                FILE_PATH=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}" | jq -r '.result.file_path')
+                curl -o "input_img" "http://localhost:8081/file/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}"
+                
+                waifu2x -i input_img -o output.png -n 2 -s 2
+                
+                curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                  -F chat_id=${TELEGRAM_CHAT_ID} \
+                  -F document=@"output.png" \
+                  -F caption="✅ Upscale completado"
+                
+                rm -f input_img output.png
+              fi
+            fi
+            sleep 2
+          done
