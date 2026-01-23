@@ -1,4 +1,4 @@
-name: Waifu2x Telegram Bot Session
+name: Waifu2x Telegram Instant
 on: [workflow_dispatch]
 
 jobs:
@@ -18,72 +18,67 @@ jobs:
           sudo mv waifu2x /usr/local/bin/
           cd ..
           rm -rf waifu2x.go
-          waifu2x -h
 
       - name: Start Local Bot API
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
+          mkdir -p /tmp/telegram-data
           docker run -d --name telegram-bot-api \
             -p 8081:8081 \
+            -v /tmp/telegram-data:/var/lib/telegram-bot-api \
             -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
             -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
             -e TELEGRAM_LOCAL=1 \
             aiogram/telegram-bot-api:latest
           sleep 10
 
-      - name: Processing Loop
+      - name: Execute Upscale and Exit
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          END_TIME=$((SECONDS + 3600))
-          echo "Iniciando loop de procesamiento (1 hora)..."
+          echo "Buscando último archivo en el historial..."
+          RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=-1")
           
-          while [ $SECONDS -lt $END_TIME ]; do
-            RESPONSE=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates")
-            
-            UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id == ${TELEGRAM_CHAT_ID} and (.message.document != null or .message.photo != null))) | last")
-            
-            if [ "$UPDATE" != "null" ] && [ "$UPDATE" != "" ]; then
-              UPDATE_ID=$(echo "$UPDATE" | jq -r '.update_id')
-              FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id')
-              CAPTION=$(echo "$UPDATE" | jq -r '.message.caption // empty')
+          UPDATE=$(echo "$RESPONSE" | jq -r ".result | map(select(.message.from.id == ${TELEGRAM_CHAT_ID} and (.message.document != null or .message.photo != null))) | last")
+          
+          if [ "$UPDATE" == "null" ] || [ "$UPDATE" == "" ]; then
+            echo "Error: No se encontró archivo. Asegúrate de haber enviado la foto antes de correr la Action."
+            exit 1
+          fi
 
-              if [[ "$CAPTION" != *"✅"* ]]; then
-                echo "--- Nuevo archivo detectado (Update ID: $UPDATE_ID) ---"
-                
-                FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
-                FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
-                
-                echo "Descargando desde: $FILE_PATH"
-                curl -o "input_img" "http://localhost:8081/file/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}"
-                
-                if [ -f "input_img" ]; then
-                  echo "Procesando con waifu2x (esto puede tardar según el tamaño)..."
-                  waifu2x -v -i input_img -o output.png -n 2 -s 2
-                  
-                  echo "Enviando resultado a Telegram..."
-                  curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-                    -F chat_id=${TELEGRAM_CHAT_ID} \
-                    -F document=@"output.png" \
-                    -F caption="✅ Escalado finalizado"
-                  
-                  echo "Limpiando archivos temporales y confirmando update..."
-                  rm -f input_img output.png
-                  curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=$((UPDATE_ID + 1))" > /dev/null
-                  echo "Listo para el siguiente archivo."
-                else
-                  echo "Error: No se pudo descargar el archivo."
-                fi
-              fi
-            fi
-            sleep 2
-          done
+          FILE_ID=$(echo "$UPDATE" | jq -r '.message.document.file_id // .message.photo[-1].file_id')
+          
+          FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
+          FILE_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
 
-      - name: Final Cleanup
+          echo "Ruta detectada en contenedor: $FILE_PATH"
+          
+          # Copiamos directamente desde el volumen montado para evitar errores de curl
+          cp "/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${FILE_PATH}" ./input.jpg
+          
+          if [ -s "input.jpg" ]; then
+            echo "Iniciando waifu2x..."
+            waifu2x -i input.jpg -o output.png -n 2 -s 2
+            
+            echo "Enviando resultado..."
+            curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id=${TELEGRAM_CHAT_ID} \
+              -F document=@"output.png" \
+              -F caption="✅ Escalado completado"
+            
+            echo "Proceso finalizado."
+          else
+            echo "Error: El archivo copiado está vacío o no existe."
+            exit 1
+          fi
+
+      - name: Cleanup
         if: always()
         run: |
           docker stop telegram-bot-api
           docker rm telegram-bot-api
+          rm -rf /tmp/telegram-data
+          rm -f input.jpg output.png
