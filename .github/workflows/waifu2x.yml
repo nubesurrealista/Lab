@@ -58,10 +58,11 @@ jobs:
                 FILE_INFO=$(curl -s "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${FILE_ID}")
                 RAW_PATH=$(echo "$FILE_INFO" | jq -r '.result.file_path')
                 
-                CLEAN_PATH=$(echo "$RAW_PATH" | sed "s|/var/lib/telegram-bot-api/bot${TELEGRAM_BOT_TOKEN}/||")
+                CLEAN_PATH=$(echo "$RAW_PATH" | rev | cut -d'/' -f1,2 | rev)
                 FULL_PATH="/tmp/telegram-data/bot${TELEGRAM_BOT_TOKEN}/${CLEAN_PATH}"
                 
-                cp "$FULL_PATH" ./input_file
+                sudo cp "$FULL_PATH" ./input_file
+                sudo chown $USER:$USER ./input_file
 
                 MIME_TYPE=$(file --mime-type -b ./input_file)
                 EXT="jpg"; [[ "$MIME_TYPE" == "image/png" ]] && EXT="png"
@@ -87,6 +88,6 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker stop telegram-bot-api
-          docker rm telegram-bot-api
-          rm -rf /tmp/telegram-data
+          docker stop telegram-bot-api || true
+          docker rm telegram-bot-api || true
+          sudo rm -rf /tmp/telegram-data
