@@ -16,7 +16,7 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-          apk add --no-cache nodejs npm git bash electron simdutf llhttp hdr-histogram crc32c minizip wayland libxshmfence
+          apk add --no-cache nodejs npm git bash electron simdutf llhttp hdr_histogram crc32c minizip wayland libxshmfence
 
       - name: Clone and Install
         run: |
