@@ -1,4 +1,4 @@
-name: Build VacuumTube Alpine Musl
+name: Build VacuumTube Alpine Portable
 
 on:
   workflow_dispatch:
@@ -11,31 +11,46 @@ jobs:
       options: --user root
 
     steps:
-      - name: Install Build Tools
+      - name: Install Tools
         run: |
           apk add --no-cache nodejs npm git bash curl
 
-      - name: Clone VacuumTube
+      - name: Clone and Install
         run: |
           git clone https://github.com/shy1132/VacuumTube.git .
           npm install
 
-      - name: Fetch and Extract Electron Musl
+      - name: Fetch Alpine Edge Assets
         run: |
-          curl -LO https://dl-cdn.alpinelinux.org/alpine/edge/testing/x86_64/electron-39.2.7-r0.apk
-          mkdir -p electron-musl
-          tar -xf electron-39.2.7-r0.apk -C electron-musl/ 2>/dev/null || true
+          REPO="https://dl-cdn.alpinelinux.org/alpine/edge"
+          mkdir -p bundle
           
-      - name: Build with Custom Electron Dist
-        run: |
-          export ELECTRON_PATH="$(pwd)/electron-musl/usr/lib/electron"
-          
-          npx electron-builder --linux --dir \
-            -c.electronDist=$ELECTRON_PATH \
-            -c.electronVersion=39.2.7
+          for pkg in electron-39.2.7-r0.apk \
+                     simdutf-6.1.0-r0.apk \
+                     llhttp-9.3.0-r0.apk \
+                     hdr-histogram-6.3.1-r1.apk \
+                     crc32c-1.1.10-r0.apk \
+                     minizip-1.3.1-r1.apk \
+                     wayland-1.23.1-r0.apk \
+                     libxshmfence-1.3.2-r0.apk; do
+            if [[ "$pkg" == "electron"* ]]; then
+              curl -LO ${REPO}/testing/x86_64/$pkg
+            else
+              curl -LO ${REPO}/main/x86_64/$pkg
+            fi
+          done
 
-      - name: Upload Artifact
+          for f in *.apk; do tar -xf "$f" -C bundle/ 2>/dev/null || true; done
+
+      - name: Build Package
+        run: |
+          export ELECTRON_PATH="$(pwd)/bundle/usr/lib/electron"
+          npx electron-builder --linux --dir -c.electronDist=$ELECTRON_PATH -c.electronVersion=39.2.7
+          
+          cp -r bundle/usr/lib/*.so* dist/linux-unpacked/
+
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Alpine-Musl
+          name: VacuumTube-Portable-Ready
           path: dist/linux-unpacked/
