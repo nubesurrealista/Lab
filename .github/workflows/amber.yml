@@ -1,4 +1,4 @@
-name: Compile Mesa Amber Debug
+name: Compile Mesa Amber Standalone
 
 on:
   workflow_dispatch:
@@ -47,28 +47,26 @@ jobs:
           EOF
           patch -Np1 -d mesa-src -i ../fix.patch
 
-      - name: Configure (With Auto-Debug)
+      - name: Configure (Verbose Mode)
         run: |
           cd mesa-src
+          # Usamos --wrap-mode=nodownload para evitar que intente conectar a internet durante el setup
+          # y forzamos la salida detallada.
           meson setup build \
             --prefix=/usr \
+            --wrap-mode=nodownload \
             -D amber=true \
             -D b_ndebug=true \
             -D dri-drivers=i915,i965 \
-            -D dri3=enabled \
-            -D egl=enabled \
-            -D gallium-drivers=swrast \
-            -D gbm=enabled \
-            -D gles1=disabled \
-            -D gles2=enabled \
-            -D glvnd=true \
-            -D glx=dri \
             -D llvm=disabled \
-            -D platforms=x11,wayland \
-            -D shared-glapi=enabled || (
+            -D shared-glapi=enabled \
+            -D platforms=x11 \
+            -D glx=dri \
+            -D gbm=enabled \
+            -D egl=enabled || (
               echo "----------------------------------------------------"
-              echo "DETECTOR DE ERRORES AUTOMÁTICO:"
-              grep -iE "NOT FOUND|ERROR:|Dependency .* not found" build/meson-logs/meson-log.txt | uniq
+              echo "ULTIMAS 100 LINEAS DEL LOG DE MESON:"
+              tail -n 100 build/meson-logs/meson-log.txt
               echo "----------------------------------------------------"
               exit 1
             )
@@ -81,8 +79,8 @@ jobs:
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
 
-      - name: Upload
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-amber-bundle
+          name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
