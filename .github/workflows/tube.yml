@@ -13,9 +13,10 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
-          apk add --no-cache nodejs npm git electron bash
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+          apk add --no-cache nodejs npm git electron bash asar
 
       - name: Clone VacuumTube
         run: |
@@ -30,8 +31,15 @@ jobs:
             -c.electronDist=$ELECTRON_PATH \
             -c.electronVersion=39.2.7
 
+      - name: Make it truly portable
+        run: |
+          # Copiamos las librerías de las que depende Electron al directorio del programa
+          cp /usr/lib/libsimdutf.so* dist/linux-unpacked/
+          cp /usr/lib/libicu* dist/linux-unpacked/ 2>/dev/null || true
+          cp /usr/lib/libffmpeg.so* dist/linux-unpacked/ 2>/dev/null || true
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Alpine-Musl
+          name: VacuumTube-Alpine-Portable
           path: dist/linux-unpacked/
