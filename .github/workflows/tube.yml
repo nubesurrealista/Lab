@@ -13,41 +13,32 @@ jobs:
     steps:
       - name: Install Tools
         run: |
-          apk add --no-cache nodejs npm git bash curl
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+          apk add --no-cache nodejs npm git bash electron simdutf llhttp hdr-histogram crc32c minizip wayland libxshmfence
 
       - name: Clone and Install
         run: |
           git clone https://github.com/shy1132/VacuumTube.git .
           npm install
 
-      - name: Fetch Alpine Edge Assets
-        run: |
-          REPO="https://dl-cdn.alpinelinux.org/alpine/edge"
-          mkdir -p bundle
-          
-          for pkg in electron-39.2.7-r0.apk \
-                     simdutf-6.1.0-r0.apk \
-                     llhttp-9.3.0-r0.apk \
-                     hdr-histogram-6.3.1-r1.apk \
-                     crc32c-1.1.10-r0.apk \
-                     minizip-1.3.1-r1.apk \
-                     wayland-1.23.1-r0.apk \
-                     libxshmfence-1.3.2-r0.apk; do
-            if [[ "$pkg" == "electron"* ]]; then
-              curl -LO ${REPO}/testing/x86_64/$pkg
-            else
-              curl -LO ${REPO}/main/x86_64/$pkg
-            fi
-          done
-
-          for f in *.apk; do tar -xf "$f" -C bundle/ 2>/dev/null || true; done
-
       - name: Build Package
         run: |
-          export ELECTRON_PATH="$(pwd)/bundle/usr/lib/electron"
-          npx electron-builder --linux --dir -c.electronDist=$ELECTRON_PATH -c.electronVersion=39.2.7
+          export ELECTRON_PATH="/usr/lib/electron"
+          SYSTEM_ELECTRON_VER=$(electron -v | sed 's/v//')
           
-          cp -r bundle/usr/lib/*.so* dist/linux-unpacked/
+          npx electron-builder --linux --dir \
+            -c.electronDist=$ELECTRON_PATH \
+            -c.electronVersion=$SYSTEM_ELECTRON_VER
+          
+          cp /usr/lib/libsimdutf.so* dist/linux-unpacked/
+          cp /usr/lib/libllhttp.so* dist/linux-unpacked/
+          cp /usr/lib/libhdr_histogram.so* dist/linux-unpacked/
+          cp /usr/lib/libcrc32c.so* dist/linux-unpacked/
+          cp /usr/lib/libminizip.so* dist/linux-unpacked/
+          cp /usr/lib/libwayland*.so* dist/linux-unpacked/
+          cp /usr/lib/libxshmfence.so* dist/linux-unpacked/
 
       - name: Upload
         uses: actions/upload-artifact@v4
