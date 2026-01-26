@@ -1,4 +1,4 @@
-name: Compile Mesa Amber Standalone
+name: Compile Mesa Amber Corregido
 
 on:
   workflow_dispatch:
@@ -17,7 +17,8 @@ jobs:
             build-base meson ninja patch python3 py3-mako py3-packaging \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev wayland-dev wayland-protocols \
-            zstd-dev elfutils-dev expat-dev bison flex curl tar xz
+            zstd-dev elfutils-dev expat-dev bison flex curl tar xz \
+            libglvnd-dev
 
       - name: Download and Patch
         run: |
@@ -47,29 +48,25 @@ jobs:
           EOF
           patch -Np1 -d mesa-src -i ../fix.patch
 
-      - name: Configure (Verbose Mode)
+      - name: Configure
         run: |
           cd mesa-src
-          # Usamos --wrap-mode=nodownload para evitar que intente conectar a internet durante el setup
-          # y forzamos la salida detallada.
           meson setup build \
             --prefix=/usr \
-            --wrap-mode=nodownload \
             -D amber=true \
             -D b_ndebug=true \
             -D dri-drivers=i915,i965 \
-            -D llvm=disabled \
-            -D shared-glapi=enabled \
-            -D platforms=x11 \
-            -D glx=dri \
+            -D dri3=enabled \
+            -D egl=enabled \
+            -D gallium-drivers=swrast \
             -D gbm=enabled \
-            -D egl=enabled || (
-              echo "----------------------------------------------------"
-              echo "ULTIMAS 100 LINEAS DEL LOG DE MESON:"
-              tail -n 100 build/meson-logs/meson-log.txt
-              echo "----------------------------------------------------"
-              exit 1
-            )
+            -D gles1=disabled \
+            -D gles2=enabled \
+            -D glvnd=true \
+            -D glx=dri \
+            -D llvm=disabled \
+            -D platforms=x11,wayland \
+            -D shared-glapi=enabled
 
       - name: Compile and Package
         run: |
@@ -77,10 +74,10 @@ jobs:
           meson compile -C build
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
-          cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
+          cd ../output && tar -czf ../mesa-amber-e8400.tar.gz .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: mesa-amber-e8400
-          path: mesa-amber-binaries.tar.gz
+          path: mesa-amber-e8400.tar.gz
