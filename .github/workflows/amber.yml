@@ -19,15 +19,11 @@ jobs:
             libxxf86vm-dev libxrandr-dev wayland-dev wayland-protocols \
             zstd-dev elfutils-dev expat-dev bison flex curl tar xz
 
-      - name: Download Mesa Amber
+      - name: Download and Patch
         run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
           tar -xf mesa.tar.xz
           mv mesa-21.3.9 mesa-src
-
-      - name: Create and Apply Patch (With Debug)
-        run: |
-          # Creamos el parche asegurando finales de línea Unix
           cat << 'EOF' > fix.patch
           --- a/meson.build
           +++ b/meson.build
@@ -49,21 +45,11 @@ jobs:
              error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
            endif
           EOF
-          
-          echo ">>> Aplicando parche..."
-          cd mesa-src
-          if patch -Np1 -i ../fix.patch; then
-            echo ">>> PARCHE APLICADO CON ÉXITO"
-          else
-            echo ">>> ERROR: EL PARCHE FALLÓ. Revisando diferencias en meson.build..."
-            grep -C 5 "has_mako =" meson.build
-            exit 1
-          fi
+          patch -Np1 -d mesa-src -i ../fix.patch
 
-      - name: Configure (Debug Mode)
+      - name: Configure (With Auto-Debug)
         run: |
           cd mesa-src
-          # Meson fallará aquí si faltan dependencias, mostramos el log solo si falla
           meson setup build \
             --prefix=/usr \
             -D amber=true \
@@ -79,7 +65,13 @@ jobs:
             -D glx=dri \
             -D llvm=disabled \
             -D platforms=x11,wayland \
-            -D shared-glapi=enabled || (cat build/meson-logs/meson-log.txt && exit 1)
+            -D shared-glapi=enabled || (
+              echo "----------------------------------------------------"
+              echo "DETECTOR DE ERRORES AUTOMÁTICO:"
+              grep -iE "NOT FOUND|ERROR:|Dependency .* not found" build/meson-logs/meson-log.txt | uniq
+              echo "----------------------------------------------------"
+              exit 1
+            )
 
       - name: Compile and Package
         run: |
@@ -87,8 +79,7 @@ jobs:
           meson compile -C build
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
-          cd ../output
-          tar -czf ../mesa-amber-binaries.tar.gz .
+          cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
 
       - name: Upload
         uses: actions/upload-artifact@v4
