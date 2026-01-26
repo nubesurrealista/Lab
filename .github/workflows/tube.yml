@@ -1,4 +1,4 @@
-name: Build VacuumTube Alpine Musl
+name: Build VacuumTube Alpine Latest
 
 on:
   workflow_dispatch:
@@ -11,35 +11,26 @@ jobs:
       options: --user root
 
     steps:
-      - name: Install Dependencies
+      - name: Install System Dependencies
         run: |
-          echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
-          echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
-          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-          apk add --no-cache nodejs npm git electron bash asar
+          apk add --no-cache nodejs npm git electron bash
 
       - name: Clone VacuumTube
         run: |
           git clone https://github.com/shy1132/VacuumTube.git .
           npm install
 
-      - name: Build with Custom Electron Dist
+      - name: Build with Stable Electron Dist
         run: |
+          SYSTEM_ELECTRON_VER=$(electron -v | sed 's/v//')
           export ELECTRON_PATH="/usr/lib/electron"
           
           npx electron-builder --linux --dir \
             -c.electronDist=$ELECTRON_PATH \
-            -c.electronVersion=39.2.7
-
-      - name: Make it truly portable
-        run: |
-          # Copiamos las librerías de las que depende Electron al directorio del programa
-          cp /usr/lib/libsimdutf.so* dist/linux-unpacked/
-          cp /usr/lib/libicu* dist/linux-unpacked/ 2>/dev/null || true
-          cp /usr/lib/libffmpeg.so* dist/linux-unpacked/ 2>/dev/null || true
+            -c.electronVersion=$SYSTEM_ELECTRON_VER
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Alpine-Portable
+          name: VacuumTube-Alpine-Latest
           path: dist/linux-unpacked/
