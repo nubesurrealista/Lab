@@ -1,4 +1,4 @@
-name: Compile Mesa Amber Standalone
+name: Compile Mesa Amber Debug
 
 on:
   workflow_dispatch:
@@ -22,17 +22,16 @@ jobs:
       - name: Download Mesa Amber
         run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
-          tar -xvf mesa.tar.xz
+          tar -xf mesa.tar.xz
           mv mesa-21.3.9 mesa-src
 
-      - name: Create and Apply Patch
+      - name: Create and Apply Patch (With Debug)
         run: |
-          cat << 'EOF' > mesa-amber-distutils.patch
-          diff --git a/meson.build b/meson.build
-          index 07c77e17a65..d711c2c7d71 100644
+          # Creamos el parche asegurando finales de línea Unix
+          cat << 'EOF' > fix.patch
           --- a/meson.build
           +++ b/meson.build
-          @@ -1008,12 +1008,15 @@ prog_python = import('python').find_installation('python3')
+          @@ -1008,12 +1008,15 @@
            has_mako = run_command(
              prog_python, '-c',
              '''
@@ -50,12 +49,21 @@ jobs:
              error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
            endif
           EOF
+          
+          echo ">>> Aplicando parche..."
           cd mesa-src
-          patch -Np1 -i ../mesa-amber-distutils.patch
+          if patch -Np1 -i ../fix.patch; then
+            echo ">>> PARCHE APLICADO CON ÉXITO"
+          else
+            echo ">>> ERROR: EL PARCHE FALLÓ. Revisando diferencias en meson.build..."
+            grep -C 5 "has_mako =" meson.build
+            exit 1
+          fi
 
-      - name: Configure and Compile
+      - name: Configure (Debug Mode)
         run: |
           cd mesa-src
+          # Meson fallará aquí si faltan dependencias, mostramos el log solo si falla
           meson setup build \
             --prefix=/usr \
             -D amber=true \
@@ -71,18 +79,19 @@ jobs:
             -D glx=dri \
             -D llvm=disabled \
             -D platforms=x11,wayland \
-            -D shared-glapi=enabled
-          
-          meson compile -C build
+            -D shared-glapi=enabled || (cat build/meson-logs/meson-log.txt && exit 1)
 
-      - name: Prepare Artifacts
+      - name: Compile and Package
         run: |
           cd mesa-src
+          meson compile -C build
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
+          cd ../output
+          tar -czf ../mesa-amber-binaries.tar.gz .
 
-      - name: Upload Binaries
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-amber-e8400
-          path: output/
+          name: mesa-amber-bundle
+          path: mesa-amber-binaries.tar.gz
