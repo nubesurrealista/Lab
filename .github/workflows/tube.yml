@@ -11,12 +11,14 @@ jobs:
       options: --user root
 
     steps:
-      - name: Install Tools
+      - name: Setup Repositories and Install
         run: |
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-          apk add --no-cache nodejs npm git bash electron simdutf llhttp hdr_histogram crc32c minizip wayland libxshmfence
+          apk update
+          apk add --no-cache nodejs npm git bash electron simdutf llhttp \
+            hdr-histogram-c-dev crc32c minizip wayland-libs libxshmfence
 
       - name: Clone and Install
         run: |
@@ -40,8 +42,8 @@ jobs:
           cp /usr/lib/libwayland*.so* dist/linux-unpacked/
           cp /usr/lib/libxshmfence.so* dist/linux-unpacked/
 
-      - name: Upload
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Portable-Ready
+          name: VacuumTube-Portable-With-Deps
           path: dist/linux-unpacked/
