@@ -28,7 +28,7 @@ jobs:
       - name: Build Package
         run: |
           export ELECTRON_PATH="/usr/lib/electron"
-          SYSTEM_ELECTRON_VER=$(electron -v | sed 's/v//')
+          SYSTEM_ELECTRON_VER=$(electron -v --no-sandbox | sed 's/v//')
           
           npx electron-builder --linux --dir \
             -c.electronDist=$ELECTRON_PATH \
