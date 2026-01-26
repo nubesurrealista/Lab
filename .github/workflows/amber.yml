@@ -1,4 +1,4 @@
-name: Compile Mesa Amber Corregido
+name: Build Mesa Amber Alpine
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev wayland-dev wayland-protocols \
             zstd-dev elfutils-dev expat-dev bison flex curl tar xz \
-            libglvnd-dev
+            mesa-dev libxfixes-dev libxcb-dev
 
       - name: Download and Patch
         run: |
@@ -51,6 +51,8 @@ jobs:
       - name: Configure
         run: |
           cd mesa-src
+          # Desactivamos glvnd explícitamente si Alpine no lo provee como paquete independiente
+          # Esto hará que Mesa use su propio cargador interno (libGL clásico)
           meson setup build \
             --prefix=/usr \
             -D amber=true \
@@ -62,7 +64,7 @@ jobs:
             -D gbm=enabled \
             -D gles1=disabled \
             -D gles2=enabled \
-            -D glvnd=true \
+            -D glvnd=false \
             -D glx=dri \
             -D llvm=disabled \
             -D platforms=x11,wayland \
@@ -74,10 +76,10 @@ jobs:
           meson compile -C build
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
-          cd ../output && tar -czf ../mesa-amber-e8400.tar.gz .
+          cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: mesa-amber-e8400
-          path: mesa-amber-e8400.tar.gz
+          path: mesa-amber-binaries.tar.gz
