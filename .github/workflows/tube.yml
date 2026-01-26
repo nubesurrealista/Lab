@@ -1,4 +1,4 @@
-name: Build VacuumTube Alpine Latest
+name: Build VacuumTube Alpine Musl
 
 on:
   workflow_dispatch:
@@ -11,26 +11,31 @@ jobs:
       options: --user root
 
     steps:
-      - name: Install System Dependencies
+      - name: Install Build Tools
         run: |
-          apk add --no-cache nodejs npm git electron bash
+          apk add --no-cache nodejs npm git bash curl
 
       - name: Clone VacuumTube
         run: |
           git clone https://github.com/shy1132/VacuumTube.git .
           npm install
 
-      - name: Build with Stable Electron Dist
+      - name: Fetch and Extract Electron Musl
         run: |
-          SYSTEM_ELECTRON_VER=$(electron -v | sed 's/v//')
-          export ELECTRON_PATH="/usr/lib/electron"
+          curl -LO https://dl-cdn.alpinelinux.org/alpine/edge/testing/x86_64/electron-39.2.7-r0.apk
+          mkdir -p electron-musl
+          tar -xf electron-39.2.7-r0.apk -C electron-musl/ 2>/dev/null || true
+          
+      - name: Build with Custom Electron Dist
+        run: |
+          export ELECTRON_PATH="$(pwd)/electron-musl/usr/lib/electron"
           
           npx electron-builder --linux --dir \
             -c.electronDist=$ELECTRON_PATH \
-            -c.electronVersion=$SYSTEM_ELECTRON_VER
+            -c.electronVersion=39.2.7
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Alpine-Latest
+          name: VacuumTube-Alpine-Musl
           path: dist/linux-unpacked/
