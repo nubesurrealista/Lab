@@ -28,27 +28,39 @@ jobs:
         run: |
           npm install
 
+      - name: Transpile Source Code
+        run: |
+          npm run build
+
       - name: Build and Package Tarball
         run: |
           export ELECTRON_SKIP_BINARY_DOWNLOAD=1
           export ELECTRON_OVERRIDE_DIST_PATH="/usr/lib/electron"
           
-          npm run package-tarball
+          npm run package-tarball -- -c.electronDist=$ELECTRON_OVERRIDE_DIST_PATH
 
-          cp /usr/lib/libsimdutf.so* dist/linux-unpacked/
-          cp /usr/lib/libllhttp.so* dist/linux-unpacked/
-          cp /usr/lib/libhdr_histogram.so* dist/linux-unpacked/
-          cp /usr/lib/libcrc32c.so* dist/linux-unpacked/
-          cp /usr/lib/libminizip.so* dist/linux-unpacked/
-          cp /usr/lib/libxshmfence.so* dist/linux-unpacked/
+      - name: Copy Native Libraries
+        run: |
+          OUTPUT_DIR="bin/linux/x64/linux-unpacked"
+          cp /usr/lib/libsimdutf.so* "$OUTPUT_DIR/"
+          cp /usr/lib/libllhttp.so* "$OUTPUT_DIR/"
+          cp /usr/lib/libhdr_histogram.so* "$OUTPUT_DIR/"
+          cp /usr/lib/libcrc32c.so* "$OUTPUT_DIR/"
+          cp /usr/lib/libminizip.so* "$OUTPUT_DIR/"
+          cp /usr/lib/libxshmfence.so* "$OUTPUT_DIR/"
 
       - name: Force Spanish Language
         run: |
-          cd dist/linux-unpacked/locales
+          cd bin/linux/x64/linux-unpacked/locales
           find . -type f ! -name 'es.pak' ! -name 'es-419.pak' -delete
+
+      - name: Prepare Final Package
+        run: |
+          mv bin/linux/x64/linux-unpacked fluentflame-portable
+          tar -cJf fluentflame-alpine-native.tar.xz fluentflame-portable/
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FluentFlame-Alpine-Native
-          path: dist/*.tar.xz
+          path: fluentflame-alpine-native.tar.xz
