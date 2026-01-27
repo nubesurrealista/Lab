@@ -53,8 +53,8 @@ jobs:
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
-            -D amber=true \
             -D b_ndebug=true \
+            -D amber=true \
             -D dri-drivers=i915,i965 \
             -D dri3=enabled \
             -D egl=enabled \
@@ -79,7 +79,7 @@ jobs:
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
 
       - name: Upload Artifact
-        uses: actions/artifact-upload@v4
+        uses: actions/upload-artifact@v4
         with:
           name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
