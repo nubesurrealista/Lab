@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apk add build-base webkit2gtk4-dev gtk+3.0-dev pkgconf
+          apk add build-base webkit2gtk-4.1-dev gtk+3.0-dev pkgconf
 
       - name: Create source code
         run: |
@@ -41,7 +41,7 @@ jobs:
 
       - name: Compile binary
         run: |
-          gcc suwayomi.c -o suwayomi $(pkgconf --cflags --libs gtk+-3.0 webkit2gtk-4.0)
+          gcc suwayomi.c -o suwayomi $(pkgconf --cflags --libs gtk+-3.0 webkit2gtk-4.1)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
