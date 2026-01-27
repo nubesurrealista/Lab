@@ -1,76 +1,56 @@
----
 name: Build Mesa Amber Alpine
+
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
       options: --user root
+
     steps:
       - name: Install dependencies
         run: |
           apk add --no-cache \
             build-base meson ninja patch python3 py3-mako py3-packaging \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
-            libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
-            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev
+            libxxf86vm-dev libxrandr-dev \
+            zstd-dev elfutils-dev expat-dev bison flex curl tar xz \
+            mesa-dev libxfixes-dev libxcb-dev
+
       - name: Download and Patch
-        run: >
+        run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
-
           tar -xf mesa.tar.xz
-
           mv mesa-21.3.9 mesa-src
-
           cat << 'EOF' > fix.patch
-
           --- a/meson.build
-
           +++ b/meson.build
-
           @@ -1008,12 +1008,15 @@
-
             has_mako = run_command(
-
               prog_python, '-c',
-
               '''
-
           -from distutils.version import StrictVersion
-
           +try:
-
           +  from packaging.version import Version
-
           +except:
-
           +  from distutils.version import StrictVersion as Version
-
             import mako
-
           -assert StrictVersion(mako.__version__) > StrictVersion("0.8.0")
-
           -  ''')
-
           +assert Version(mako.__version__) >= Version("0.8.0")
-
           +  ''', check: false)
-
             if has_mako.returncode() != 0
-
               error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
-
             endif
-
           EOF
-
           patch -Np1 -d mesa-src -i ../fix.patch
-      - name: Configure
-        run: >
-          cd mesa-src
 
+      - name: Configure
+        run: |
+          cd mesa-src
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
@@ -90,6 +70,7 @@ jobs:
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[]
+
       - name: Compile and Package
         run: |
           cd mesa-src
@@ -97,6 +78,7 @@ jobs:
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
