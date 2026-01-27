@@ -25,37 +25,7 @@ jobs:
 
           mv mesa-21.3.9 mesa-src
 
-          echo "--- a/meson.build" > fix.patch
-
-          echo "+++ b/meson.build" >> fix.patch
-
-          echo "@@ -1008,9 +1008,12 @@" >> fix.patch
-
-          echo " prog_python = import('python').find_installation('python3')" >> fix.patch
-
-          echo " has_mako = run_command(" >> fix.patch
-
-          echo "   prog_python, '-c'," >> fix.patch
-
-          echo "   '''" >> fix.patch
-
-          echo "-from distutils.version import StrictVersion" >> fix.patch
-
-          echo "+try:" >> fix.patch
-
-          echo "+  from packaging.version import Version" >> fix.patch
-
-          echo "+except:" >> fix.patch
-
-          echo "+  from distutils.version import StrictVersion as Version" >> fix.patch
-
-          echo " import mako" >> fix.patch
-
-          echo "-assert StrictVersion(mako.__version__) >= StrictVersion(\"0.8.0\")" >> fix.patch
-
-          echo "+assert Version(mako.__version__) >= Version(\"0.8.0\")" >> fix.patch
-
-          echo "   ''', check: false)" >> fix.patch
+          curl -L "https://gitlab.archlinux.org/archlinux/packaging/packages/mesa-amber/-/raw/main/mesa-amber-21.3.9-meson-Support-for-both-packaging-and-distutils.patch" -o fix.patch
 
           patch -Np1 -d mesa-src -i ../fix.patch
       - name: Configure
