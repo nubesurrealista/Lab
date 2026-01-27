@@ -18,7 +18,7 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
           apk add --no-cache nodejs npm git bash electron simdutf llhttp \
-            hdrhistogram-c crc32c minizip wayland libxshmfence
+            hdrhistogram-c crc32c minizip libxshmfence
 
       - name: Clone and Install
         run: |
@@ -39,11 +39,15 @@ jobs:
           cp /usr/lib/libhdr_histogram.so* dist/linux-unpacked/
           cp /usr/lib/libcrc32c.so* dist/linux-unpacked/
           cp /usr/lib/libminizip.so* dist/linux-unpacked/
-          cp /usr/lib/libwayland*.so* dist/linux-unpacked/
           cp /usr/lib/libxshmfence.so* dist/linux-unpacked/
+
+      - name: Force Spanish Language
+        run: |
+          cd dist/linux-unpacked/locales
+          find . -type f ! -name 'es.pak' ! -name 'es-419.pak' -delete
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VacuumTube-Portable-With-Deps
+          name: VacuumTube-Portable-ES
           path: dist/linux-unpacked/
