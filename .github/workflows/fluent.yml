@@ -1,84 +1,54 @@
-name: Manual Build Universal Flatpak
+name: Build FluentFlame Alpine Native
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_flatpak:
+  build:
     runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+      options: --user root
+
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Build Environment
+      - name: Setup Repositories and Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder binutils
-          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+          apk update
+          apk add --no-cache nodejs npm git bash electron simdutf llhttp \
+            hdrhistogram-c crc32c minizip libxshmfence build-base python3
 
-      - name: Build Official Debian Package
+      - name: Clone Repository
         run: |
-          git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
-          cd source-code
+          git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git .
+          
+      - name: Install NPM Dependencies
+        run: |
           npm install
-          npm run build
-          npm run package-deb
-          find . -name "*.deb" -exec cp {} ../package.deb \;
-          cd ..
 
-      - name: Create Flatpak Manifest
+      - name: Build and Package Tarball
         run: |
-          cat <<EOF > org.fluentflame.Reader.yml
-          app-id: org.fluentflame.Reader
-          runtime: org.freedesktop.Platform
-          runtime-version: '24.08'
-          sdk: org.freedesktop.Sdk
-          command: fluentflame-reader
-          finish-args:
-            - --share=ipc
-            - --socket=wayland
-            - --socket=fallback-x11
-            - --device=dri
-            - --socket=pulseaudio
-            - --share=network
-            - --filesystem=home
-          modules:
-            - name: reader-deb-extractor
-              buildsystem: simple
-              build-commands:
-                - ar x package.deb
-                - tar xf data.tar.*
-                - if [ -d opt ]; then cp -r opt/* /app/; fi
-                - if [ -d usr ]; then cp -r usr/* /app/; fi
-                
-                - rm -rf /app/share/doc /app/share/man /app/share/info
-                - find /app -name "*.a" -delete
-                - find /app -name "*.h" -delete
-                
-                - find /app -type f -name "*.so*" -exec strip --strip-unneeded {} + || true
-                - find /app -type f -executable -exec strip --strip-unneeded {} + || true
+          export ELECTRON_SKIP_BINARY_DOWNLOAD=1
+          export ELECTRON_OVERRIDE_DIST_PATH="/usr/lib/electron"
+          
+          npm run package-tarball
 
-                - mkdir -p /app/bin
-                - find /app -name "fluentflame-reader" -type f -executable -exec ln -s {} /app/bin/fluentflame-reader \;
-                
-                - mkdir -p /app/share/applications
-                - find . -name "*.desktop" -exec cp {} /app/share/applications/org.fluentflame.Reader.desktop \;
-                - sed -i 's/Exec=.*/Exec=fluentflame-reader --no-sandbox --ozone-platform-hint=auto/' /app/share/applications/org.fluentflame.Reader.desktop
-                - sed -i 's/Icon=.*/Icon=org.fluentflame.Reader/' /app/share/applications/org.fluentflame.Reader.desktop
-                
-                - mkdir -p /app/share/icons/hicolor/512x512/apps/
-                - find . -name "fluentflame-reader.png" -exec cp {} /app/share/icons/hicolor/512x512/apps/org.fluentflame.Reader.png \;
-              sources:
-                - type: file
-                  path: package.deb
-          EOF
+          cp /usr/lib/libsimdutf.so* dist/linux-unpacked/
+          cp /usr/lib/libllhttp.so* dist/linux-unpacked/
+          cp /usr/lib/libhdr_histogram.so* dist/linux-unpacked/
+          cp /usr/lib/libcrc32c.so* dist/linux-unpacked/
+          cp /usr/lib/libminizip.so* dist/linux-unpacked/
+          cp /usr/lib/libxshmfence.so* dist/linux-unpacked/
 
-      - name: Build Flatpak Bundle
+      - name: Force Spanish Language
         run: |
-          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
-          flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
+          cd dist/linux-unpacked/locales
+          find . -type f ! -name 'es.pak' ! -name 'es-419.pak' -delete
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FluentFlame-Final-Bundle
-          path: FluentFlame-Personal.flatpak
+          name: FluentFlame-Alpine-Native
+          path: dist/*.tar.xz
