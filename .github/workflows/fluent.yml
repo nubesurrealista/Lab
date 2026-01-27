@@ -18,7 +18,7 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
           apk add --no-cache nodejs npm git bash electron simdutf llhttp \
-            hdrhistogram-c crc32c minizip libxshmfence build-base python3
+            hdrhistogram-c crc32c minizip libxshmfence build-base python3 xz
 
       - name: Clone Repository
         run: |
@@ -32,12 +32,14 @@ jobs:
         run: |
           npm run build
 
-      - name: Build and Package Tarball
+      - name: Build Unpacked Directory
         run: |
-          export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-          export ELECTRON_OVERRIDE_DIST_PATH="/usr/lib/electron"
+          export ELECTRON_PATH="/usr/lib/electron"
+          SYSTEM_ELECTRON_VER=$(electron -v --no-sandbox | sed 's/v//')
           
-          npm run package-tarball -- -c.electronDist=$ELECTRON_OVERRIDE_DIST_PATH
+          npx electron-builder --linux --dir \
+            -c.electronDist=$ELECTRON_PATH \
+            -c.electronVersion=$SYSTEM_ELECTRON_VER
 
       - name: Copy Native Libraries
         run: |
@@ -54,7 +56,7 @@ jobs:
           cd bin/linux/x64/linux-unpacked/locales
           find . -type f ! -name 'es.pak' ! -name 'es-419.pak' -delete
 
-      - name: Prepare Final Package
+      - name: Create Final Tarball Native
         run: |
           mv bin/linux/x64/linux-unpacked fluentflame-portable
           tar -cJf fluentflame-alpine-native.tar.xz fluentflame-portable/
