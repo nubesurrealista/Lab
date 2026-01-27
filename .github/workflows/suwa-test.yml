@@ -1,8 +1,6 @@
 name: Build Suwayomi Native Visor
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,7 +10,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          apk add build-base webkit2gtk-dev gtk+3.0-dev pkgconfig
+          apk add build-base webkit2gtk4-dev gtk+3.0-dev pkgconf
 
       - name: Create source code
         run: |
@@ -29,7 +27,6 @@ jobs:
               GtkWidget *web = webkit_web_view_new();
               WebKitSettings *settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(web));
               
-              webkit_settings_set_enable_write_console_messages_to_stdout(settings, TRUE);
               webkit_settings_set_enable_javascript(settings, TRUE);
               
               gtk_container_add(GTK_CONTAINER(win), web);
@@ -44,7 +41,7 @@ jobs:
 
       - name: Compile binary
         run: |
-          gcc suwayomi.c -o suwayomi $(pkg-config --cflags --libs gtk+-3.0 webkit2gtk-4.0)
+          gcc suwayomi.c -o suwayomi $(pkgconf --cflags --libs gtk+-3.0 webkit2gtk-4.0)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
