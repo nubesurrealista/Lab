@@ -1,61 +1,71 @@
+---
 name: Build Mesa Amber Alpine
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
       options: --user root
-
     steps:
       - name: Install dependencies
         run: |
           apk add --no-cache \
             build-base meson ninja patch python3 py3-mako py3-packaging \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
-            libxxf86vm-dev libxrandr-dev \
-            zstd-dev elfutils-dev expat-dev bison flex curl tar xz \
-            mesa-dev libxfixes-dev libxcb-dev
-
+            libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
+            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev
       - name: Download and Patch
-        run: |
-          curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
-          tar -xf mesa.tar.xz
-          mv mesa-21.3.9 mesa-src
-          cat << 'EOF' > fix.patch
-          --- a/meson.build
-          +++ b/meson.build
-          @@ -1008,12 +1008,15 @@
-            has_mako = run_command(
-              prog_python, '-c',
-              '''
-          -from distutils.version import StrictVersion
-          +try:
-          +  from packaging.version import Version
-          +except:
-          +  from distutils.version import StrictVersion as Version
-            import mako
-          -assert StrictVersion(mako.__version__) > StrictVersion("0.8.0")
-          -  ''')
-          +assert Version(mako.__version__) >= Version("0.8.0")
-          +  ''', check: false)
-            if has_mako.returncode() != 0
-              error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
-            endif
-          EOF
-          patch -Np1 -d mesa-src -i ../fix.patch
+        run: >
+          curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz
+          -o mesa.tar.xz
 
+          tar -xf mesa.tar.xz
+
+          mv mesa-21.3.9 mesa-src
+
+          echo "--- a/meson.build" > fix.patch
+
+          echo "+++ b/meson.build" >> fix.patch
+
+          echo "@@ -1008,9 +1008,12 @@" >> fix.patch
+
+          echo " prog_python = import('python').find_installation('python3')" >> fix.patch
+
+          echo " has_mako = run_command(" >> fix.patch
+
+          echo "   prog_python, '-c'," >> fix.patch
+
+          echo "   '''" >> fix.patch
+
+          echo "-from distutils.version import StrictVersion" >> fix.patch
+
+          echo "+try:" >> fix.patch
+
+          echo "+  from packaging.version import Version" >> fix.patch
+
+          echo "+except:" >> fix.patch
+
+          echo "+  from distutils.version import StrictVersion as Version" >> fix.patch
+
+          echo " import mako" >> fix.patch
+
+          echo "-assert StrictVersion(mako.__version__) >= StrictVersion(\"0.8.0\")" >> fix.patch
+
+          echo "+assert Version(mako.__version__) >= Version(\"0.8.0\")" >> fix.patch
+
+          echo "   ''', check: false)" >> fix.patch
+
+          patch -Np1 -d mesa-src -i ../fix.patch
       - name: Configure
         run: |
           cd mesa-src
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
-            -D amber=true \
             -D b_ndebug=true \
+            -D amber=true \
             -D dri-drivers=i915,i965 \
             -D dri3=enabled \
             -D egl=enabled \
@@ -70,7 +80,6 @@ jobs:
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[]
-
       - name: Compile and Package
         run: |
           cd mesa-src
@@ -78,7 +87,6 @@ jobs:
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
