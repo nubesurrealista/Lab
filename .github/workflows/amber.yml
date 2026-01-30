@@ -31,13 +31,16 @@ jobs:
       - name: Configure
         run: |
           cd mesa-src
+          # Aplicamos las flags de dialecto TLS que usa Alpine para evitar errores de relocalización
+          export CFLAGS="-march=penryn -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          export CXXFLAGS="-march=penryn -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
             -D b_ndebug=true \
-            -D b_lto=true \
+            -D b_lto=false \
             -D b_staticpic=true \
-            -D use-elf-tls=false \
             -D amber=true \
             -D dri-drivers=i915,i965 \
             -D dri3=enabled \
@@ -53,8 +56,8 @@ jobs:
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
-            -D c_args="-march=penryn -O3 -D_GNU_SOURCE" \
-            -D cpp_args="-march=penryn -O3 -D_GNU_SOURCE"
+            -D c_args="$CFLAGS" \
+            -D cpp_args="$CXXFLAGS"
       - name: Compile and Package
         run: |
           cd mesa-src
