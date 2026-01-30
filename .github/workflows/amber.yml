@@ -35,6 +35,9 @@ jobs:
             --prefix=/usr \
             --buildtype=release \
             -D b_ndebug=true \
+            -D b_lto=true \
+            -D b_staticpic=true \
+            -D elf-tls=false \
             -D amber=true \
             -D dri-drivers=i915,i965 \
             -D dri3=enabled \
@@ -49,7 +52,9 @@ jobs:
             -D llvm=disabled \
             -D platforms=x11 \
             -D shared-glapi=enabled \
-            -D vulkan-drivers=[]
+            -D vulkan-drivers=[] \
+            -D c_args="-march=penryn -O3 -D_GNU_SOURCE" \
+            -D cpp_args="-march=penryn -O3 -D_GNU_SOURCE"
       - name: Compile and Package
         run: |
           cd mesa-src
