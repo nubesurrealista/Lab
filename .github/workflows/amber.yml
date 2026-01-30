@@ -31,9 +31,13 @@ jobs:
       - name: Configure
         run: |
           cd mesa-src
-          # Aplicamos las flags de dialecto TLS que usa Alpine para evitar errores de relocalización
-          export CFLAGS="-march=penryn -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
-          export CXXFLAGS="-march=penryn -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          # DEFINICIÓN DE FLAGS BLINDADAS:
+          # 1. -march=core2: La arquitectura base que GCC acepta para tu E8400.
+          # 2. -msse4.1: Activamos manualmente las instrucciones multimedia que tu Wolfdale sí tiene.
+          # 3. -ftls-model=global-dynamic: LA CLAVE. Evita el crash "initial-exec" en Electron.
+          # 4. -mtls-dialect=gnu: El dialecto que prefiere Alpine para evitar errores de linkeo.
+          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
           
           meson setup build \
             --prefix=/usr \
