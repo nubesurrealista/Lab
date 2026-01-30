@@ -37,7 +37,7 @@ jobs:
             -D b_ndebug=true \
             -D b_lto=true \
             -D b_staticpic=true \
-            -D elf-tls=false \
+            -D use-elf-tls=false \
             -D amber=true \
             -D dri-drivers=i915,i965 \
             -D dri3=enabled \
