@@ -1,0 +1,74 @@
+name: Build FreeTube Alpine Portable
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+      options: --user root
+
+    steps:
+      - name: Setup Repositories and Install
+        run: |
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+          apk update
+          apk add --no-cache nodejs npm yarn git bash electron simdutf llhttp \
+            hdrhistogram-c crc32c minizip libxshmfence curl 7zip
+
+      - name: Clone FreeTube (Latest Tag)
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | sed 's/[^0-9.]//g')
+          git clone --branch v${LATEST_TAG} --depth 1 https://github.com/FreeTubeApp/FreeTube.git .
+
+      - name: Modify Build Script (Set Target to Dir Only)
+        run: |
+          # Reemplazamos los targets de Linux para que solo genere 'dir'
+          sed -i "s/Platform.LINUX.createTarget(\['deb', 'zip', '7z', 'rpm', 'AppImage', 'pacman'\]/Platform.LINUX.createTarget(['dir']/" scripts/build.mjs
+
+      - name: Install Dependencies
+        run: |
+          yarn install
+
+      - name: Build Package
+        run: |
+          export ELECTRON_PATH="/usr/lib/electron"
+          export SYSTEM_ELECTRON_VER=$(electron -v --no-sandbox | sed 's/v//')
+          
+          # Configuramos variables para que use el Electron de Alpine
+          export ELECTRON_SKIP_BINARY_DOWNLOAD=1
+          export ELECTRON_OVERRIDE_DIST_PATH=$ELECTRON_PATH
+          
+          yarn run build
+          
+          # Copiamos las librerías necesarias para Musl a la carpeta de salida
+          # Nota: FreeTube genera el build en la carpeta 'build/' según su documentación
+          cp /usr/lib/libsimdutf.so* build/linux-unpacked/
+          cp /usr/lib/libllhttp.so* build/linux-unpacked/
+          cp /usr/lib/libhdr_histogram.so* build/linux-unpacked/
+          cp /usr/lib/libcrc32c.so* build/linux-unpacked/
+          cp /usr/lib/libminizip.so* build/linux-unpacked/
+          cp /usr/lib/libxshmfence.so* build/linux-unpacked/
+
+      - name: Fix Locales (Extract from Official Release)
+        run: |
+          LATEST_TAG_FULL=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
+          VERSION_NUM=$(echo $LATEST_TAG_FULL | sed 's/v//')
+          URL="https://github.com/FreeTubeApp/FreeTube/releases/download/${LATEST_TAG_FULL}/freetube-${VERSION_NUM}-linux-x64-portable.zip"
+          
+          curl -L -o release.zip "$URL"
+          7z x release.zip locales/es.pak locales/es-419.pak -o./temp_locales
+          
+          mkdir -p build/linux-unpacked/locales
+          mv temp_locales/locales/*.pak build/linux-unpacked/locales/
+          rm -rf temp_locales release.zip
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeTube-Portable-ES-Musl
+          path: build/linux-unpacked/
