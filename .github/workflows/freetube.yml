@@ -27,7 +27,8 @@ jobs:
 
       - name: Modify Build Script (Set Target to Dir Only)
         run: |
-          sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" scripts/build.mjs
+          # Usamos la ruta correcta con el guion bajo
+          sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" _scripts/build.mjs
 
       - name: Install Dependencies
         run: |
@@ -42,6 +43,7 @@ jobs:
           
           yarn run build
           
+          # Verificamos si la carpeta es build o dist (FreeTube suele usar build)
           cp /usr/lib/libsimdutf.so* build/linux-unpacked/
           cp /usr/lib/libllhttp.so* build/linux-unpacked/
           cp /usr/lib/libhdr_histogram.so* build/linux-unpacked/
@@ -56,11 +58,9 @@ jobs:
           URL="https://github.com/FreeTubeApp/FreeTube/releases/download/${LATEST_TAG}/freetube-${VERSION_NUM}-linux-x64-portable.zip"
           
           curl -L -o release.zip "$URL"
-          # Extraemos solo los archivos de español
           7z x release.zip locales/es.pak locales/es-419.pak -o./temp_locales
           
           mkdir -p build/linux-unpacked/locales
-          # Limpiamos los locales vacíos que pudo dejar el build
           rm -f build/linux-unpacked/locales/*.pak
           mv temp_locales/locales/*.pak build/linux-unpacked/locales/
           rm -rf temp_locales release.zip
