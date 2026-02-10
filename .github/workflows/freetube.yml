@@ -1,4 +1,4 @@
-name: Build FreeTube Alpine Portable
+name: Build FreeTube Alpine Portable (Self-Contained Musl)
 
 on:
   workflow_dispatch:
@@ -18,44 +18,38 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
           apk add --no-cache nodejs npm yarn git bash electron simdutf llhttp \
-            hdrhistogram-c crc32c minizip libxshmfence curl 7zip tree
+            hdrhistogram-c crc32c minizip libxshmfence curl 7zip
 
-      - name: Clone FreeTube (Latest Tag)
+      - name: Clone FreeTube
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
           git clone --branch ${LATEST_TAG} --depth 1 https://github.com/FreeTubeApp/FreeTube.git .
-          # Inspección visual para depurar en los logs
-          tree -L 2
 
-      - name: Modify Build Script (Advanced Search)
+      - name: Modify Build Script
         run: |
-          # Buscamos el archivo ignorando si es .js o .mjs y lo editamos
           BUILD_PATH=$(find . -path "*/scripts/build.*" -o -path "*/_scripts/build.*" | head -n 1)
-          
-          if [ -z "$BUILD_PATH" ]; then
-            echo "ERROR: No se encontró el script de build"
-            exit 1
-          fi
-          
-          echo "Modificando: $BUILD_PATH"
           sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" "$BUILD_PATH"
 
-      - name: Install Dependencies
+      - name: Install and Build
         run: |
-          yarn install
-
-      - name: Build Package
-        run: |
-          export ELECTRON_PATH="/usr/lib/electron"
-          export SYSTEM_ELECTRON_VER=$(electron -v --no-sandbox | sed 's/v//')
           export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-          export ELECTRON_OVERRIDE_DIST_PATH=$ELECTRON_PATH
-          
+          export ELECTRON_OVERRIDE_DIST_PATH=/usr/lib/electron
+          yarn install
           yarn run build
-          
-          # Localizamos la carpeta unpacked dinámicamente
+
+      - name: Replace Glibc Binary with Musl Binary
+        run: |
           UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
           
+          # Borramos el ejecutable glibc que causa el error y las librerías dudosas
+          rm -f "$UNPACKED_DIR/freetube"
+          rm -f "$UNPACKED_DIR/libffmpeg.so"
+          
+          # Copiamos el ejecutable nativo de Alpine y sus recursos
+          cp /usr/bin/electron "$UNPACKED_DIR/freetube"
+          cp /usr/lib/libffmpeg.so "$UNPACKED_DIR/" 2>/dev/null || true
+          
+          # Inyectamos las librerías musl que ya tenías
           cp /usr/lib/libsimdutf.so* "$UNPACKED_DIR/"
           cp /usr/lib/libllhttp.so* "$UNPACKED_DIR/"
           cp /usr/lib/libhdr_histogram.so* "$UNPACKED_DIR/"
@@ -68,10 +62,8 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
           VERSION_NUM=$(echo $LATEST_TAG | sed 's/v//')
           URL="https://github.com/FreeTubeApp/FreeTube/releases/download/${LATEST_TAG}/freetube-${VERSION_NUM}-linux-x64-portable.zip"
-          
           curl -L -o release.zip "$URL"
           7z x release.zip locales/es.pak locales/es-419.pak -o./temp_locales
-          
           UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
           mkdir -p "$UNPACKED_DIR/locales"
           rm -f "$UNPACKED_DIR/locales"/*.pak
@@ -81,5 +73,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FreeTube-Portable-ES-Musl
+          name: FreeTube-Portable-Musl-Native
           path: "**/linux-unpacked/**"
