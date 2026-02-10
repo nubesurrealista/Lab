@@ -18,17 +18,27 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
           apk add --no-cache nodejs npm yarn git bash electron simdutf llhttp \
-            hdrhistogram-c crc32c minizip libxshmfence curl 7zip
+            hdrhistogram-c crc32c minizip libxshmfence curl 7zip tree
 
       - name: Clone FreeTube (Latest Tag)
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
           git clone --branch ${LATEST_TAG} --depth 1 https://github.com/FreeTubeApp/FreeTube.git .
+          # Inspección visual para depurar en los logs
+          tree -L 2
 
-      - name: Modify Build Script (Set Target to Dir Only)
+      - name: Modify Build Script (Advanced Search)
         run: |
-          # Usamos la ruta correcta con el guion bajo
-          sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" _scripts/build.mjs
+          # Buscamos el archivo ignorando si es .js o .mjs y lo editamos
+          BUILD_PATH=$(find . -path "*/scripts/build.*" -o -path "*/_scripts/build.*" | head -n 1)
+          
+          if [ -z "$BUILD_PATH" ]; then
+            echo "ERROR: No se encontró el script de build"
+            exit 1
+          fi
+          
+          echo "Modificando: $BUILD_PATH"
+          sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" "$BUILD_PATH"
 
       - name: Install Dependencies
         run: |
@@ -43,15 +53,17 @@ jobs:
           
           yarn run build
           
-          # Verificamos si la carpeta es build o dist (FreeTube suele usar build)
-          cp /usr/lib/libsimdutf.so* build/linux-unpacked/
-          cp /usr/lib/libllhttp.so* build/linux-unpacked/
-          cp /usr/lib/libhdr_histogram.so* build/linux-unpacked/
-          cp /usr/lib/libcrc32c.so* build/linux-unpacked/
-          cp /usr/lib/libminizip.so* build/linux-unpacked/
-          cp /usr/lib/libxshmfence.so* build/linux-unpacked/
+          # Localizamos la carpeta unpacked dinámicamente
+          UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
+          
+          cp /usr/lib/libsimdutf.so* "$UNPACKED_DIR/"
+          cp /usr/lib/libllhttp.so* "$UNPACKED_DIR/"
+          cp /usr/lib/libhdr_histogram.so* "$UNPACKED_DIR/"
+          cp /usr/lib/libcrc32c.so* "$UNPACKED_DIR/"
+          cp /usr/lib/libminizip.so* "$UNPACKED_DIR/"
+          cp /usr/lib/libxshmfence.so* "$UNPACKED_DIR/"
 
-      - name: Fix Locales (Extract from Official Release)
+      - name: Fix Locales (Spanish Only)
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
           VERSION_NUM=$(echo $LATEST_TAG | sed 's/v//')
@@ -60,13 +72,14 @@ jobs:
           curl -L -o release.zip "$URL"
           7z x release.zip locales/es.pak locales/es-419.pak -o./temp_locales
           
-          mkdir -p build/linux-unpacked/locales
-          rm -f build/linux-unpacked/locales/*.pak
-          mv temp_locales/locales/*.pak build/linux-unpacked/locales/
+          UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
+          mkdir -p "$UNPACKED_DIR/locales"
+          rm -f "$UNPACKED_DIR/locales"/*.pak
+          mv temp_locales/locales/*.pak "$UNPACKED_DIR/locales/"
           rm -rf temp_locales release.zip
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FreeTube-Portable-ES-Musl
-          path: build/linux-unpacked/
+          path: "**/linux-unpacked/**"
