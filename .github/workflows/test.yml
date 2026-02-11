@@ -26,6 +26,9 @@ jobs:
             aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 \
                    --summary-interval=0 --console-log-level=error \
                    "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1 || exit 1
+            
+            sudo pkill openvpn
+            echo "VPN finalizada tras descarga exitosa."
           fi
           
           FILE_COUNT=$(find payload -type f | wc -l)
