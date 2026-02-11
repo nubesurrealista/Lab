@@ -9,14 +9,24 @@ jobs:
       - name: Setup Environment
         run: |
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
-          sudo apt update && sudo apt install -y aria2 ffmpeg zip parallel
+          sudo apt update && sudo apt install -y aria2 ffmpeg zip parallel openvpn
           mkdir -p payload final
 
       - name: Download Media
         run: |
-          aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 \
-                 --summary-interval=0 --console-log-level=error \
-                 "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1 || exit 1
+          if ! aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 \
+                      --summary-interval=0 --console-log-level=error \
+                      "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1; then
+            
+            echo "Descarga inicial fallida. Iniciando VPN de respaldo..."
+            echo "${{ secrets.VPN_CONFIG }}" > config.ovpn
+            sudo openvpn --config config.ovpn --daemon
+            sleep 10
+            
+            aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 \
+                   --summary-interval=0 --console-log-level=error \
+                   "${{ secrets.SOURCE_ENTRY }}" > /dev/null 2>&1 || exit 1
+          fi
           
           FILE_COUNT=$(find payload -type f | wc -l)
           echo "::add-mask::$FILE_COUNT"
