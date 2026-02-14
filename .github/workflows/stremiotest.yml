@@ -1,0 +1,84 @@
+name: Stremio Packager AnyLinux
+on:
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    name: Package Stremio AnyLinux (Arch)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    
+    steps:
+      - name: Setup Chaotic-AUR & Install Dependencies
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
+          pacman-key --lsign-key 3056513887B78AEB
+          pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' --noconfirm
+          pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst' --noconfirm
+          
+          echo "[chaotic-aur]" >> /etc/pacman.conf
+          echo "Include = /etc/pacman.d/chaotic-mirrorlist" >> /etc/pacman.conf
+          
+          pacman -Sy --noconfirm
+          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb \
+            stremio nodejs mpv qt5-webengine qt5-quickcontrols qt5-quickcontrols2 qt5-graphicaleffects
+
+      - name: Prepare Workspace and Tools
+        run: |
+          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/quick-sharun.sh" -O ./quick-sharun
+          chmod +x ./quick-sharun
+
+          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/get-debloated-pkgs.sh" -O ./get-debloated-pkgs
+          chmod +x ./get-debloated-pkgs
+
+          curl -fsSL "https://github.com/VHSgunzo/sharun/releases/latest/download/sharun-x86_64" -o /usr/local/bin/sharun
+          chmod +x /usr/local/bin/sharun
+
+          ./get-debloated-pkgs --add-mesa --add-common --prefer-nano ffmpeg-mini
+
+      - name: Prepare Assets
+        run: |
+          mkdir -p build_dir
+          cp /usr/share/applications/com.stremio.stremio.desktop build_dir/stremio.desktop
+          cp /usr/share/icons/hicolor/128x128/apps/smartcode-stremio.png build_dir/icon.png
+          sed -i 's|^Exec=.*|Exec=stremio %u|' build_dir/stremio.desktop
+
+      - name: Build AppImage
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ANYLINUX_LIB: 1
+          DEPLOY_LOCALE: 1
+          DEBLOAT_LOCALE: 0
+          DEPLOY_OPENGL: 1
+          DEPLOY_VULKAN: 1
+          STRACE_MODE: 1
+          LANG: es_ES.UTF-8
+          LC_ALL: es_ES.UTF-8
+        run: |
+          export ARCH=$(uname -m)
+          export VERSION=$(date +%Y%m%d)
+          export OUTPATH="./dist"
+          export UPINFO="gh-releases-zsync|${GITHUB_REPOSITORY}|continuous|*x86_64.AppImage.zsync"
+          export ADD_HOOKS="fix-namespaces.hook:vulkan-check.src.hook:self-updater.bg.hook"
+          export ICON="build_dir/icon.png"
+          export DESKTOP="build_dir/stremio.desktop"
+          export STRIP=1
+
+          xvfb-run ./quick-sharun /usr/bin/stremio --timeout 20 \
+            /usr/bin/node \
+            /usr/lib/libmpv.so \
+            /usr/lib/qt/plugins/webengine/* \
+            /usr/lib/qt/plugins/bearer/* \
+            /usr/lib/qt/plugins/imageformats/*
+
+          ./quick-sharun --make-appimage
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stremio-AnyLinux-AppImage
+          path: ./dist/*
