@@ -14,16 +14,14 @@ jobs:
       - name: Install Base System Dependencies
         run: |
           pacman -Sy --noconfirm
-          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc make git sudo fakeroot debugedit
+          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc make git sudo fakeroot debugedit patch
           
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          
-          su builder -c "git clone https://aur.archlinux.org/paru-bin.git /tmp/paru-bin && cd /tmp/paru-bin && makepkg -si --noconfirm"
 
       - name: Install Stremio via AUR
         run: |
-          su builder -c "paru -S --noconfirm stremio"
+          su builder -c "cd /tmp && git clone https://aur.archlinux.org/stremio.git && cd stremio && makepkg -si --noconfirm"
 
       - name: Prepare Workspace and Tools
         run: |
@@ -66,7 +64,7 @@ jobs:
           export DESKTOP="build_dir/stremio.desktop"
           export STRIP=1
 
-          xvfb-run ./quick-sharun /usr/bin/stremio --timeout 35 \
+          xvfb-run ./quick-sharun /usr/bin/stremio --timeout 40 \
             /usr/bin/node \
             /usr/lib/libmpv.so \
             /usr/lib/qt/plugins/webengine/* \
