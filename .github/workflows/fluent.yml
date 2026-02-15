@@ -78,7 +78,7 @@ jobs:
           flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: FluentFlame-Final-Bundle
           path: FluentFlame-Personal.flatpak

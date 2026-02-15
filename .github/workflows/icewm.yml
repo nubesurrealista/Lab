@@ -96,7 +96,7 @@ jobs:
           echo "Final tarball size:"
           ls -lh /icewm-clang-lowend.tar.gz
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: icewm-clang-lowend
           path: /icewm-clang-lowend.tar.gz

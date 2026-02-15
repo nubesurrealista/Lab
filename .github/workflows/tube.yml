@@ -47,7 +47,7 @@ jobs:
           find . -type f ! -name 'es.pak' ! -name 'es-419.pak' -delete
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: VacuumTube-Portable-ES
           path: dist/linux-unpacked/

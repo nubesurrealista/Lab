@@ -52,7 +52,7 @@ jobs:
 
           echo "APK signed successfully!"
       - name: Upload signed APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: urlsanitizer-release
           path: url-sanitizer-signed.apk

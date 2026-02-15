@@ -60,7 +60,7 @@ jobs:
           find . -name "*_libretro.so" -exec cp {} "$DEST_DIR/" \;
 
       - name: Upload Temporary Core
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tmp-${{ matrix.name }}
           path: output/
@@ -71,7 +71,7 @@ jobs:
     needs: build-cores
     steps:
       - name: Merge Artifacts
-        uses: actions/upload-artifact/merge@v4
+        uses: actions/upload-artifact/merge@v6
         with:
           name: Cores-Alpine-Stable-Pack
           pattern: tmp-*

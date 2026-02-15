@@ -28,7 +28,7 @@ jobs:
           ls -R out/
 
       - name: Upload Librespeed Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: librespeed-cli-alpine
           # Buscamos el binario generado en la carpeta out

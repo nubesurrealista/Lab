@@ -46,7 +46,7 @@ jobs:
           tar -czf l3afpad-alpine-es.tar.gz -C package .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: l3afpad-alpine-musl
           path: l3afpad-alpine-es.tar.gz

@@ -42,7 +42,7 @@ jobs:
           strip --strip-unneeded retroarch
 
       - name: Upload RetroArch Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: RetroArch-Alpine-Core2Duo
           path: ra/retroarch
