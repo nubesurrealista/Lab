@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Clone emu-ex-plus-alpha source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: nubesurrealista/emu-ex-plus-alpha
           ref: es

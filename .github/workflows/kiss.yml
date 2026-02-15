@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout workflow repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Clone KISS Launcher source
         run: |
           git clone --depth 1 --branch colors-test https://github.com/nubesurrealista/KISS.git
