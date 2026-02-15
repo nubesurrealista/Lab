@@ -50,7 +50,7 @@ jobs:
           find /home/builder/srb2bld_builds -type f -executable -exec cp {} ./dist/ \; 2>/dev/null || true
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SRB2-Nativo-Alpine
           path: ./dist/

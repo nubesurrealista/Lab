@@ -43,7 +43,7 @@ jobs:
           tar -czf lxappearance-alpine.tar.gz -C package .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lxappearance-bin
           path: lxappearance-alpine.tar.gz

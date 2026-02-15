@@ -65,7 +65,7 @@ jobs:
           echo "binary_path=./tic80-pro-alpine-x11" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tic80-pro-alpine-x11
           path: ${{ steps.locate.outputs.binary_path }}
