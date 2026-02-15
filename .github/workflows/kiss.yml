@@ -12,7 +12,7 @@ jobs:
         run: |
           git clone --depth 1 --branch colors-test https://github.com/nubesurrealista/KISS.git
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
