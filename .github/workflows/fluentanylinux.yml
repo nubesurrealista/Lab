@@ -3,31 +3,52 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Package FluentFlame AnyLinux
+  build_deb:
+    name: Build DEB (Ubuntu)
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-      options: --privileged
-
+    outputs:
+      deb_name: ${{ steps.get_name.outputs.name }}
     steps:
-      - name: Install System Dependencies
-        run: |
-          pacman -Sy --noconfirm
-          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc make git sudo nodejs npm
-
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
           repository: FluentFlame/fluentflame-reader
 
-      - name: Build and Extract DEB
+      - name: Build FluentFlame
         run: |
           npm install
           npm run build
           npm run package-deb
+
+      - name: Upload DEB for next job
+        uses: actions/upload-artifact@v6
+        with:
+          name: temp-deb
+          path: dist/*.deb
+
+  package_anylinux:
+    name: Package AnyLinux (Arch)
+    needs: build_deb
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    steps:
+      - name: Install Arch Dependencies
+        run: |
+          pacman -Sy --noconfirm
+          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc make git sudo
+
+      - name: Download DEB from previous job
+        uses: actions/download-artifact@v6
+        with:
+          name: temp-deb
+          path: .
+
+      - name: Extract DEB content
+        run: |
           mkdir -p extracted
-          find dist -name "*.deb" -exec ar x {} \;
+          find . -name "*.deb" -exec ar x {} \;
           tar xf data.tar.* -C extracted/
 
       - name: Prepare AnyLinux Tools
@@ -45,7 +66,6 @@ jobs:
 
       - name: AnyLinux Deployment
         env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
           ANYLINUX_LIB: 1
           DEPLOY_OPENGL: 1
           DEPLOY_VULKAN: 1
@@ -67,11 +87,11 @@ jobs:
 
           sed -i 's|^Exec=.*|Exec=fluentflame-reader --ozone-platform-hint=auto %U|' "$DESKTOP"
 
-          xvfb-run ./quick-sharun "$BINARY_PATH" --timeout 20
+          xvfb-run ./quick-sharun "$BINARY_PATH" --timeout 25
           
           ./quick-sharun --make-appimage
 
-      - name: Upload Artifact
+      - name: Upload Final AppImage
         uses: actions/upload-artifact@v6
         with:
           name: FluentFlame-AnyLinux
