@@ -13,7 +13,8 @@ jobs:
       run: |
         docker run --rm --privileged -v ${{ github.workspace }}:/workspace -w /workspace termux/termux-docker:arm /bin/sh -c "
           pkg update -y &&
-          pkg install -y git automake autoconf ncurses-utils ncurses clang make &&
+          pkg upgrade -y &&
+          pkg install -y git automake autoconf ncurses-utils ncurses clang make libcurl &&
           cd /tmp &&
           git clone https://github.com/Ilan12346-maya/htop source &&
           cd source &&
