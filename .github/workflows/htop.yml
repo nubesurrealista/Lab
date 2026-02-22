@@ -1,4 +1,4 @@
-name: Android ARMv7a Termux-Htop Build
+name: Android ARMv7a Static Build
 on:
   workflow_dispatch:
 
@@ -6,46 +6,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Clone
-      run: git clone https://github.com/Ilan12346-maya/htop .
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
 
-    - name: Deps
-      run: sudo apt-get install --no-install-recommends autotools-dev autoconf automake pkg-config libncurses5-dev
-
-    - name: Bootstrap
-      run: ./autogen.sh
-
-    - name: Configure
+    - name: Compile
       run: |
-        NDK_PATH=$ANDROID_NDK_LATEST_HOME
-        TOOLCHAIN=$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64
-        TARGET=armv7a-linux-androideabi
-        API=21
-        
-        export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
-        export AR=$TOOLCHAIN/bin/llvm-ar
-        export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-        export STRIP=$TOOLCHAIN/bin/llvm-strip
-        
-        ./configure --host=$TARGET \
-                    --enable-static \
-                    --enable-unicode \
-                    --disable-hwloc \
-                    --disable-delayacct \
-                    --disable-sensors \
-                    --enable-capabilities || (cat config.log; exit 1)
-
-    - name: Compatibility
-      run: |
-        sed -i 's/#define HAVE_FSTATAT 1/#undef HAVE_FSTATAT/g' config.h
-        sed -i 's/#define HAVE_OPENAT 1/#undef HAVE_OPENAT/g' config.h
-        sed -i 's/#define HAVE_READLINKAT 1/#undef HAVE_READLINKAT/g' config.h
-
-    - name: Build
-      run: make -j$(nproc)
+        docker run --rm --privileged -v ${{ github.workspace }}:/workspace -w /workspace termux/termux-docker:arm /bin/sh -c "
+          pkg update -y &&
+          pkg install -y git automake autoconf ncurses-utils ncurses clang make &&
+          git clone https://github.com/Ilan12346-maya/htop source &&
+          cd source &&
+          ./autogen.sh &&
+          ./configure --enable-static --disable-unicode LDFLAGS='-static' &&
+          make -j$(nproc) &&
+          cp htop ../htop-static-armv7
+        "
 
     - name: Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: htop-termux-armv7a
-        path: htop
+        name: htop-static-armv7
+        path: htop-static-armv7
