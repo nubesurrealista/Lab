@@ -1,4 +1,4 @@
-name: Android ARMv7a Static Build
+name: ripgrep ARMv7a Static Build
 on:
   workflow_dispatch:
 
@@ -15,18 +15,17 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           pkg update -y &&
           pkg upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' &&
-          pkg install -y git automake autoconf ncurses-utils ncurses clang make libcurl &&
+          pkg install -y git rust binutils &&
           cd /tmp &&
-          git clone https://github.com/Ilan12346-maya/htop source &&
-          cd source &&
-          ./autogen.sh &&
-          ./configure --enable-static --disable-unicode LDFLAGS='-static' &&
-          make -j$(nproc) &&
-          cp htop /workspace/htop-static-armv7
+          git clone https://github.com/BurntSushi/ripgrep &&
+          cd ripgrep &&
+          cargo build --release &&
+          strip target/release/rg &&
+          cp target/release/rg /workspace/rg-static-armv7
         "
 
     - name: Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: htop-static-armv7
-        path: htop-static-armv7
+        name: rg-static-armv7
+        path: rg-static-armv7
