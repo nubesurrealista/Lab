@@ -14,12 +14,13 @@ jobs:
         docker run --rm --privileged -v ${{ github.workspace }}:/workspace -w /workspace termux/termux-docker:arm /bin/sh -c "
           pkg update -y &&
           pkg install -y git automake autoconf ncurses-utils ncurses clang make &&
+          cd /tmp &&
           git clone https://github.com/Ilan12346-maya/htop source &&
           cd source &&
           ./autogen.sh &&
           ./configure --enable-static --disable-unicode LDFLAGS='-static' &&
           make -j$(nproc) &&
-          cp htop ../htop-static-armv7
+          cp htop /workspace/htop-static-armv7
         "
 
     - name: Artifact
