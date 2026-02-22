@@ -12,8 +12,9 @@ jobs:
     - name: Compile
       run: |
         docker run --rm --privileged -v ${{ github.workspace }}:/workspace -w /workspace termux/termux-docker:arm /bin/sh -c "
+          export DEBIAN_FRONTEND=noninteractive
           pkg update -y &&
-          pkg upgrade -y &&
+          pkg upgrade -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' &&
           pkg install -y git automake autoconf ncurses-utils ncurses clang make libcurl &&
           cd /tmp &&
           git clone https://github.com/Ilan12346-maya/htop source &&
