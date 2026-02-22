@@ -9,11 +9,6 @@ jobs:
     - name: Clone
       run: git clone https://github.com/Ilan12346-maya/htop .
 
-    - name: Setup NDK
-      uses: n0rt3n/setup-android-ndk@v1
-      with:
-        ndk-version: r25c
-
     - name: Deps
       run: sudo apt-get install --no-install-recommends autotools-dev autoconf automake pkg-config libncurses5-dev
 
@@ -22,13 +17,16 @@ jobs:
 
     - name: Configure
       run: |
-        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
-        export TARGET=armv7a-linux-androideabi
-        export API=21
+        NDK_PATH=$ANDROID_NDK_LATEST_HOME
+        TOOLCHAIN=$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64
+        TARGET=armv7a-linux-androideabi
+        API=21
+        
         export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
         export AR=$TOOLCHAIN/bin/llvm-ar
         export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
         export STRIP=$TOOLCHAIN/bin/llvm-strip
+        
         ./configure --host=$TARGET \
                     --enable-static \
                     --enable-unicode \
