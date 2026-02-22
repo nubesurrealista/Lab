@@ -1,0 +1,53 @@
+name: Android ARMv7a Termux-Htop Build
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone
+      run: git clone https://github.com/Ilan12346-maya/htop .
+
+    - name: Setup NDK
+      uses: n0rt3n/setup-android-ndk@v1
+      with:
+        ndk-version: r25c
+
+    - name: Deps
+      run: sudo apt-get install --no-install-recommends autotools-dev autoconf automake pkg-config libncurses5-dev
+
+    - name: Bootstrap
+      run: ./autogen.sh
+
+    - name: Configure
+      run: |
+        export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+        export TARGET=armv7a-linux-androideabi
+        export API=21
+        export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
+        export AR=$TOOLCHAIN/bin/llvm-ar
+        export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+        export STRIP=$TOOLCHAIN/bin/llvm-strip
+        ./configure --host=$TARGET \
+                    --enable-static \
+                    --enable-unicode \
+                    --disable-hwloc \
+                    --disable-delayacct \
+                    --disable-sensors \
+                    --enable-capabilities || (cat config.log; exit 1)
+
+    - name: Compatibility
+      run: |
+        sed -i 's/#define HAVE_FSTATAT 1/#undef HAVE_FSTATAT/g' config.h
+        sed -i 's/#define HAVE_OPENAT 1/#undef HAVE_OPENAT/g' config.h
+        sed -i 's/#define HAVE_READLINKAT 1/#undef HAVE_READLINKAT/g' config.h
+
+    - name: Build
+      run: make -j$(nproc)
+
+    - name: Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: htop-termux-armv7a
+        path: htop
