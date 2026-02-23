@@ -15,7 +15,7 @@ jobs:
         shell: sh
         run: |
           apk update
-          apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates doas musl-dev
+          apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates doas musl-dev gcc-armv7-none-eabihf
           echo "permit nopass root" > /etc/doas.conf
 
       - name: Install Rust
@@ -36,6 +36,7 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           cd hyfetch
+          export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER=arm-none-eabihf-gcc
           RUSTFLAGS="-C target-feature=+crt-static" \
           cargo build --release --target armv7-unknown-linux-musleabihf --all-features
 
