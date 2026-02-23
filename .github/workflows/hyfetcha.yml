@@ -1,0 +1,46 @@
+name: Build Hyfetch on Alpine (Static armv7)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 
+      image: alpine:latest
+    env:
+      HOME: /root
+    steps:
+      - name: Install dependencies
+        shell: sh
+        run: |
+          apk update
+          apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates doas musl-dev
+          echo "permit nopass root" > /etc/doas.conf
+
+      - name: Install Rust
+        shell: sh
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          . "$HOME/.cargo/env"
+          rustup target add armv7-unknown-linux-musleabihf
+          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Clone
+        shell: sh
+        run: |
+          git clone https://github.com/hykilpikonna/hyfetch.git
+
+      - name: Build
+        shell: sh
+        run: |
+          . "$HOME/.cargo/env"
+          cd hyfetch
+          RUSTFLAGS="-C target-feature=+crt-static" \
+          cargo build --release --target armv7-unknown-linux-musleabihf --all-features
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyfetch-static-android
+          path: hyfetch/target/armv7-unknown-linux-musleabihf/release/hyfetch
