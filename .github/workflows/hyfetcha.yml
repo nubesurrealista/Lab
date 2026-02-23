@@ -1,4 +1,4 @@
-name: Build Hyfetch on Alpine (Static armv7)
+name: Build Hyfetch on Alpine (Native armv7)
 
 on:
   workflow_dispatch:
@@ -6,42 +6,34 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: 
-      image: alpine:latest
-    env:
-      HOME: /root
     steps:
-      - name: Install dependencies
-        shell: sh
-        run: |
-          apk update
-          apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates doas musl-dev gcc-armv7-none-eabihf
-          echo "permit nopass root" > /etc/doas.conf
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install Rust
-        shell: sh
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          . "$HOME/.cargo/env"
-          rustup target add armv7-unknown-linux-musleabihf
-          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
 
-      - name: Clone
-        shell: sh
+      - name: Build in Alpine armv7
         run: |
-          git clone https://github.com/hykilpikonna/hyfetch.git
-
-      - name: Build
-        shell: sh
-        run: |
-          . "$HOME/.cargo/env"
-          cd hyfetch
-          export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_LINKER=arm-none-eabihf-gcc
-          RUSTFLAGS="-C target-feature=+crt-static" \
-          cargo build --release --target armv7-unknown-linux-musleabihf --all-features
+          docker run --rm --platform linux/arm/v7 -v ${{ github.workspace }}:/work -w /work alpine:latest sh -c "
+            apk update
+            apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates musl-dev
+            
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            . /root/.cargo/env
+            
+            git clone https://github.com/hykilpikonna/hyfetch.git
+            cd hyfetch
+            
+            RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --all-features
+            
+            cp target/release/hyfetch /work/hyfetch-static
+          "
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: hyfetch-static-android
-          path: hyfetch/target/armv7-unknown-linux-musleabihf/release/hyfetch
+          path: hyfetch-static
