@@ -24,7 +24,9 @@ jobs:
             git clone https://github.com/hykilpikonna/hyfetch.git
             cd hyfetch
             
-            RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --all-features
+            # Limpiamos flags manuales que puedan confundir a las proc-macros
+            unset RUSTFLAGS
+            cargo build --release --all-features
             
             cp target/release/hyfetch /work/hyfetch-static
           "
