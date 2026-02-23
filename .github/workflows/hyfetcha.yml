@@ -19,10 +19,7 @@ jobs:
         run: |
           docker run --rm --platform linux/arm/v7 -v ${{ github.workspace }}:/work -w /work alpine:latest sh -c "
             apk update
-            apk add --no-cache curl git pkgconfig openssl-dev build-base ca-certificates musl-dev
-            
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-            . /root/.cargo/env
+            apk add --no-cache git pkgconfig openssl-dev build-base ca-certificates musl-dev rust cargo
             
             git clone https://github.com/hykilpikonna/hyfetch.git
             cd hyfetch
