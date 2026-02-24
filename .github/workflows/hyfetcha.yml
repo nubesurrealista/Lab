@@ -1,38 +1,42 @@
-name: Build Hyfetch on Alpine (Native armv7)
-
+---
+name: Build Hyfetch for Android ARMv7
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          platforms: arm
-
-      - name: Build in Alpine armv7
+          targets: armv7-linux-androideabi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+      - name: Download and set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+          add-to-path: true
+          local-cache: true
+      - name: Clone Hyfetch repository
         run: |
-          docker run --rm --platform linux/arm/v7 -v ${{ github.workspace }}:/work -w /work alpine:latest sh -c "
-            apk update
-            apk add --no-cache git pkgconfig openssl-dev build-base ca-certificates musl-dev rust cargo
-            
-            git clone https://github.com/hykilpikonna/hyfetch.git
-            cd hyfetch
-            
-            # Limpiamos flags manuales que puedan confundir a las proc-macros
-            unset RUSTFLAGS
-            cargo build --release --all-features
-            
-            cp target/release/hyfetch /work/hyfetch-static
-          "
-
-      - name: Upload
+          git clone https://github.com/hykilpikonna/hyfetch.git
+          cd hyfetch
+          cargo fetch --locked  # Pre-descarga dependencias
+      - name: Build Hyfetch for Android ARMv7
+        working-directory: hyfetch
+        env:
+          RUSTFLAGS: -C target_feature=+crt-static
+        run: |
+          # Usa cargo-ndk para manejar el NDK y cross-compile
+          cargo ndk -t armeabi-v7a build --release --all-features
+          # Verifica el binario (opcional, para logs)
+          file target/armv7-linux-androideabi/release/hyfetch
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hyfetch-static-android
-          path: hyfetch-static
+          name: hyfetch-android-armv7
+          path: hyfetch/target/armv7-linux-androideabi/release/hyfetch
+          retention-days: 5
