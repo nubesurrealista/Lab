@@ -1,0 +1,54 @@
+---
+name: Build ripgrep for Android ARMv7
+on:
+  workflow_dispatch: null
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (opcional, si quieres tu propio fork; sino clona
+          ripgrep directamente)
+        uses: actions/checkout@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-linux-androideabi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: true
+          local-cache: true
+      - name: Clone ripgrep repository (latest stable)
+        run: |
+          git clone https://github.com/BurntSushi/ripgrep.git
+          cd ripgrep
+          git checkout 15.1.0   # Tag de la última release estable
+      - name: Build ripgrep for Android ARMv7
+        working-directory: ripgrep
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: |
+          # Build release con cargo-ndk
+          cargo ndk \
+            -t armeabi-v7a \
+            build --release --locked
+
+          # Verifica el binario generado (para logs en Actions)
+          ls -la target/armv7-linux-androideabi/release/rg
+          file target/armv7-linux-androideabi/release/rg
+      - name: Strip el binario (reduce tamaño ~20-40%)
+        working-directory: ripgrep
+        run: >
+          ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip \
+            target/armv7-linux-androideabi/release/rg || true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rg-android-armv7
+          path: ripgrep/target/armv7-linux-androideabi/release/rg
+          if-no-files-found: error
+          retention-days: 1
