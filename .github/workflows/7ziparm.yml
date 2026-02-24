@@ -1,4 +1,4 @@
-name: Build 7za (7-Zip-zstd) for Android ARMv7
+name: Build 7za 26.00 (base oficial + codecs fork) para Android ARMv7
 
 on:
   workflow_dispatch:
@@ -7,13 +7,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Rust (solo para cargo-ndk, no se usa en el build)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout repo fork
+        uses: actions/checkout@v4
         with:
-          targets: armv7-linux-androideabi
+          repository: mcmilk/7-Zip-zstd
+          ref: 7zip-origin/mainline
 
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+      - name: Merge codecs extra desde master
+        run: |
+          git fetch origin master:master
+          git merge master --allow-unrelated-histories --no-edit || git merge --abort && echo "Merge conflict - codecs may not apply fully"
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -22,39 +25,34 @@ jobs:
           add-to-path: true
           local-cache: true
 
-      - name: Clone 7-Zip-zstd (fuente exacta de tu binario)
-        run: |
-          git clone https://github.com/mcmilk/7-Zip-zstd.git
-          cd 7-Zip-zstd
-          git checkout master   # o un tag concreto si quieres una versión fija
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
 
-      - name: Build 7za completo para ARMv7 Android
-        working-directory: 7-Zip-zstd/CPP/7zip
+      - name: Build 7za standalone
+        working-directory: CPP/7zip/Bundles/Alone
         env:
-          NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
-          CC: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
-          CXX: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
-          AR: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-ar
-          RANLIB: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-ranlib
-          STRIP: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-strip
-          RUSTFLAGS: "-C target-feature=+crt-static"   # solo por si acaso
+          CC: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+          CXX: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
+          AR: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          RANLIB: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
+          STRIP: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
         run: |
-          # Flags importantes para que sea completo y optimizado
-          export MY_CPU=ARM
-          export USE_ASM=yes
-          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp"
+          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
+          export CXXFLAGS="$CFLAGS"
           export LDFLAGS="-static -s"
 
-          make -f makefile.gcc 7za -j4
+          make -f makefile.gcc clean
+          make -f makefile.gcc
 
-          # El binario suele quedar aquí
           ls -la 7za
           file 7za
-          ${STRIP} 7za 2>/dev/null || true
+          ./7za --help
+          ./7za i
+          $STRIP 7za || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 7za-android-armv7-full
-          path: 7-Zip-zstd/CPP/7zip/7za
+          name: 7za-android-armv7-26.00-con-codecs
+          path: CPP/7zip/Bundles/Alone/7za
           retention-days: 7
