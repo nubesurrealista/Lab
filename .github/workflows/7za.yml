@@ -1,7 +1,8 @@
----
 name: Build 7za oficial latest main ARMv7
+
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,52 +12,43 @@ jobs:
         with:
           repository: ip7z/7zip
           ref: main
+
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26d
           add-to-path: true
           local-cache: true
+
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
+
       - name: Build 7za standalone
-        working-directory: CPP/7zip/Bundles/Alone
+        working-directory: CPP/7zip/Bundles/Alone2
         env:
-          CC: ${{ env.ANDROID_NDK_HOME
-            }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
-          CXX: ${{ env.ANDROID_NDK_HOME
-            }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
-          AR: ${{ env.ANDROID_NDK_HOME
-            }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-          RANLIB: ${{ env.ANDROID_NDK_HOME
-            }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
-          STRIP: ${{ env.ANDROID_NDK_HOME
-            }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
-        run: >
-          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp
-          -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
-
+          CC: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+          CXX: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
+          AR: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          RANLIB: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
+          STRIP: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+        run: |
+          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21 -D_GNU_SOURCE -Wno-error"
           export CXXFLAGS="$CFLAGS"
-
           export LDFLAGS="-static -s"
 
+          make -f cmpl_gcc.mak clean
+          make -f cmpl_gcc.mak CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" -j$(nproc)
 
-          make -f makefile.gcc clean
+          ls -la b/g/7zz
+          file b/g/7zz
+          b/g/7zz --help
+          b/g/7zz i
+          $STRIP b/g/7zz || true
 
-          make -f makefile.gcc CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" -j$(nproc)
+          cp b/g/7zz "$GITHUB_WORKSPACE"/7za
 
-
-          ls -la 7za
-
-          file 7za
-
-          ./7za --help
-
-          ./7za i
-
-          $STRIP 7za || true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: 7za-android-armv7-oficial-latest
-          path: CPP/7zip/Bundles/Alone/7za
+          path: 7za
