@@ -1,4 +1,4 @@
-name: Build 7za oficial latest main ARMv7
+name: Build 7za Android
 
 on:
   workflow_dispatch:
@@ -23,6 +23,16 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
 
+      - name: Aplicar parches de Termux para ARMv7/Android
+        run: |
+          # Parche para flags (quita -Werror, ajusta LFLAGS_STRIP)
+          sed -i 's/-Werror//' CPP/7zip/7zip_gcc.mak
+          sed -i 's/-s//' CPP/7zip/7zip_gcc.mak
+
+          # Parche para redefiniciones de tipos (uint32_t/uint64_t ya existen en Android)
+          sed -i '/#ifndef __ANDROID__/i #ifdef __ANDROID__\n#include <stdint.h>\n#else' CPP/7zip/C/hashes/hash.h
+          sed -i '/#endif/a #endif' CPP/7zip/C/hashes/hash.h
+
       - name: Build 7za standalone
         working-directory: CPP/7zip/Bundles/Alone2
         env:
@@ -32,12 +42,12 @@ jobs:
           RANLIB: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
           STRIP: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
         run: |
-          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21 -D_GNU_SOURCE -Wno-error"
+          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21 -D_GNU_SOURCE"
           export CXXFLAGS="$CFLAGS"
           export LDFLAGS="-static -s"
 
-          make -f cmpl_gcc.mak clean
-          make -f cmpl_gcc.mak CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" -j$(nproc)
+          make -f makefile.gcc clean
+          make -f makefile.gcc CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" -j$(nproc)
 
           ls -la b/g/7zz
           file b/g/7zz
