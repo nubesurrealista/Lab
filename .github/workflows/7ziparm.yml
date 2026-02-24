@@ -1,4 +1,5 @@
 name: Build 7za fork
+
 on:
   workflow_dispatch:
 
@@ -22,10 +23,12 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
 
-      - name: Patch build-lx.sh para ARMv7
-        working-directory: CPP
+      - name: Patch para desactivar ASM x86 y compilar ARMv7
+        working-directory: CPP/7zip
         run: |
-          sed -i '/case "$ARCH" in/a \ \ \ \ armv7)\n      make CC=$CC CXX=$CXX -j$(nproc) -f makefile.gcc IS_ARM=1 USE_ASM=0 || exit 1\n      ;;\n' build-lx.sh
+          sed -i 's/UASM_ASM = 1/UASM_ASM = 0/g' 7zip_gcc.mak
+          sed -i '/LzmaDecOpt.asm/d' 7zip_gcc.mak
+          sed -i '/Asm\/x86/d' 7zip_gcc.mak
 
       - name: Build 7za
         working-directory: CPP
@@ -38,17 +41,18 @@ jobs:
           CFLAGS: "-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
           CXXFLAGS: "$CFLAGS"
           LDFLAGS: "-static -s"
-          ARCH: armv7
           OUTDIR: ${{ github.workspace }}/CPP/build
         run: |
-          chmod +x build-lx.sh
-          ./build-lx.sh
+          cd 7zip/Bundles/Alone
+          make -f makefile.gcc clean
+          make -f makefile.gcc CC="$CC" CXX="$CXX" AR="$AR" RANLIB="$RANLIB" STRIP="$STRIP" -j$(nproc)
 
-          ls -la build/7za
-          file build/7za
-          build/7za --help
-          build/7za i
-          $STRIP build/7za || true
+          cp 7za "$OUTDIR"/7za
+          ls -la "$OUTDIR"/7za
+          file "$OUTDIR"/7za
+          "$OUTDIR"/7za --help
+          "$OUTDIR"/7za i
+          $STRIP "$OUTDIR"/7za || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
