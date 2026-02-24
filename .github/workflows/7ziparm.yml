@@ -1,4 +1,4 @@
-name: Build 7za fork mcmilk master (latest)
+name: Build 7za fork
 
 on:
   workflow_dispatch:
@@ -23,31 +23,32 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
 
-      - name: Build 7za standalone
-        working-directory: CPP/7zip/Bundles/Alone
+      - name: Build 7za para ARMv7 Android
+        working-directory: CPP
         env:
           CC: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
           CXX: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
           AR: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
           RANLIB: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
           STRIP: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+          CFLAGS: "-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
+          CXXFLAGS: "-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
+          LDFLAGS: "-static -s"
+          ARCH: armv7
+          OUTDIR: ${{ github.workspace }}/CPP/build
         run: |
-          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
-          export CXXFLAGS="$CFLAGS"
-          export LDFLAGS="-static -s"
+          chmod +x build-lx.sh
+          ./build-lx.sh
 
-          make -f makefile.gcc clean
-          make -f makefile.gcc
-
-          ls -la 7za
-          file 7za
-          ./7za --help
-          ./7za i
-          $STRIP 7za || true
+          ls -la build/7za
+          file build/7za
+          build/7za --help
+          build/7za i
+          $STRIP build/7za || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: 7za-android-armv7-fork-master
-          path: CPP/7zip/Bundles/Alone/7za
+          path: CPP/build/7za
           retention-days: 1
