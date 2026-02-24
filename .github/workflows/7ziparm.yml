@@ -1,5 +1,4 @@
 name: Build 7za fork
-
 on:
   workflow_dispatch:
 
@@ -23,7 +22,12 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y make g++ clang nasm yasm
 
-      - name: Build 7za para ARMv7 Android
+      - name: Patch build-lx.sh para ARMv7
+        working-directory: CPP
+        run: |
+          sed -i '/case "$ARCH" in/a \ \ \ \ armv7)\n      make CC=$CC CXX=$CXX -j$(nproc) -f makefile.gcc IS_ARM=1 USE_ASM=0 || exit 1\n      ;;\n' build-lx.sh
+
+      - name: Build 7za
         working-directory: CPP
         env:
           CC: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
@@ -32,7 +36,7 @@ jobs:
           RANLIB: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
           STRIP: ${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
           CFLAGS: "-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
-          CXXFLAGS: "-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp -static-libstdc++ -static-libgcc -DANDROID -D__ANDROID_API__=21"
+          CXXFLAGS: "$CFLAGS"
           LDFLAGS: "-static -s"
           ARCH: armv7
           OUTDIR: ${{ github.workspace }}/CPP/build
