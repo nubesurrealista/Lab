@@ -1,0 +1,60 @@
+name: Build 7za (7-Zip-zstd) for Android ARMv7
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Rust (solo para cargo-ndk, no se usa en el build)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-linux-androideabi
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+          add-to-path: true
+          local-cache: true
+
+      - name: Clone 7-Zip-zstd (fuente exacta de tu binario)
+        run: |
+          git clone https://github.com/mcmilk/7-Zip-zstd.git
+          cd 7-Zip-zstd
+          git checkout master   # o un tag concreto si quieres una versión fija
+
+      - name: Build 7za completo para ARMv7 Android
+        working-directory: 7-Zip-zstd/CPP/7zip
+        env:
+          NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+          CC: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+          CXX: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang++
+          AR: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-ar
+          RANLIB: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-ranlib
+          STRIP: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi-strip
+          RUSTFLAGS: "-C target-feature=+crt-static"   # solo por si acaso
+        run: |
+          # Flags importantes para que sea completo y optimizado
+          export MY_CPU=ARM
+          export USE_ASM=yes
+          export CFLAGS="-O3 -march=armv7-a -mthumb -mfpu=neon -mfloat-abi=softfp"
+          export LDFLAGS="-static -s"
+
+          make -f makefile.gcc 7za -j4
+
+          # El binario suele quedar aquí
+          ls -la 7za
+          file 7za
+          ${STRIP} 7za 2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 7za-android-armv7-full
+          path: 7-Zip-zstd/CPP/7zip/7za
+          retention-days: 7
