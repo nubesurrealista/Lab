@@ -1,43 +1,27 @@
 ---
-name: Build Librespeed CLI
+name: Build Librespeed CLI (Alpine Edition)
 on:
   workflow_dispatch: null
 jobs:
   build-librespeed:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        build:
-          - name: alpine-amd64
-            container: alpine:latest
-            goos: linux
-            goarch: amd64
-          - name: armv7-static
-            container: alpine:latest
-            goos: linux
-            goarch: arm
-            goarm: 7
-            cgo_enabled: 0
-    container: ${{ matrix.build.container }}
+    container: alpine:latest
     steps:
       - name: Install System Dependencies
         run: |
           apk update
           apk add git go bash build-base doas
       - name: Clone and Build Librespeed-CLI
-        env:
-          GOOS: ${{ matrix.build.goos }}
-          GOARCH: ${{ matrix.build.goarch }}
-          GOARM: ${{ matrix.build.goarm }}
-          CGO_ENABLED: ${{ matrix.build.cgo_enabled }}
         run: |
           git clone https://github.com/librespeed/speedtest-cli
           cd speedtest-cli
+
           chmod +x build.sh
           ./build.sh
+
           ls -R out/
       - name: Upload Librespeed Binary
         uses: actions/upload-artifact@v6
         with:
-          name: librespeed-cli-${{ matrix.build.name }}
+          name: librespeed-cli-alpine
           path: speedtest-cli/out/librespeed-cli-*
