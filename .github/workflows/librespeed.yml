@@ -1,36 +1,43 @@
-name: Build Librespeed CLI (Alpine Edition)
+---
+name: Build Librespeed CLI
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build-librespeed:
     runs-on: ubuntu-latest
-    container: alpine:latest
+    strategy:
+      matrix:
+        build:
+          - name: alpine-amd64
+            container: alpine:latest
+            goos: linux
+            goarch: amd64
+          - name: armv7-static
+            container: alpine:latest
+            goos: linux
+            goarch: arm
+            goarm: 7
+            cgo_enabled: 0
+    container: ${{ matrix.build.container }}
     steps:
       - name: Install System Dependencies
         run: |
-          # Actualizamos e instalamos herramientas de compilación y doas
           apk update
           apk add git go bash build-base doas
-
       - name: Clone and Build Librespeed-CLI
+        env:
+          GOOS: ${{ matrix.build.goos }}
+          GOARCH: ${{ matrix.build.goarch }}
+          GOARM: ${{ matrix.build.goarm }}
+          CGO_ENABLED: ${{ matrix.build.cgo_enabled }}
         run: |
-          # Clonamos el repositorio
           git clone https://github.com/librespeed/speedtest-cli
           cd speedtest-cli
-          
-          # Damos permisos de ejecución y compilamos
-          # El script build.sh de librespeed usa internamente comandos de Go
           chmod +x build.sh
           ./build.sh
-          
-          # Verificamos el contenido de la carpeta de salida
           ls -R out/
-
       - name: Upload Librespeed Binary
         uses: actions/upload-artifact@v6
         with:
-          name: librespeed-cli-alpine
-          # Buscamos el binario generado en la carpeta out
-          # Usamos un wildcard porque el nombre incluye arquitectura (ej: librespeed-cli-linux-amd64)
+          name: librespeed-cli-${{ matrix.build.name }}
           path: speedtest-cli/out/librespeed-cli-*
