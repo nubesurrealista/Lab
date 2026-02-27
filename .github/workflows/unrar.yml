@@ -1,5 +1,5 @@
 ---
-name: Build unrar-free (Static Executable Fix)
+name: Build unrar-free (Static Final Fix)
 on:
   workflow_dispatch: null
 jobs:
@@ -13,7 +13,7 @@ jobs:
                   acl-dev attr-dev bzip2-dev expat-dev lz4-dev \
                   openssl-dev xz-dev zlib-dev zstd-dev bsd-compat-headers \
                   argp-standalone zlib-static bzip2-static xz-static \
-                  zstd-static openssl-libs-static
+                  zstd-static openssl-libs-static acl-static attr-static
       - name: Checkout libarchive
         run: git clone --depth 1 https://github.com/libarchive/libarchive.git
       - name: Build libarchive (Static)
@@ -29,9 +29,8 @@ jobs:
         run: |
           cd unrar-free
           autoreconf -f -i
-          # Quitamos el flag -static del configure para evitar el error de prueba del compilador
-          # Lo inyectamos directamente en el paso de compilación final
           ./configure
+          # Forzamos el enlace estático con todas las librerías requeridas instaladas
           make -j$(nproc) LDFLAGS="-static" LIBS="-larchive -largp -lzstd -llzma -lbz2 -lz -lacl -lattr -lcrypto"
       - name: Binary Check
         run: |
