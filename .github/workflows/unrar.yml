@@ -1,5 +1,5 @@
 ---
-name: Build unrar-free (Final Static Fix)
+name: Build unrar-free (Static Executable Fix)
 on:
   workflow_dispatch: null
 jobs:
@@ -12,7 +12,8 @@ jobs:
           apk add build-base autoconf automake libtool git \
                   acl-dev attr-dev bzip2-dev expat-dev lz4-dev \
                   openssl-dev xz-dev zlib-dev zstd-dev bsd-compat-headers \
-                  argp-standalone
+                  argp-standalone zlib-static bzip2-static xz-static \
+                  zstd-static openssl-libs-static
       - name: Checkout libarchive
         run: git clone --depth 1 https://github.com/libarchive/libarchive.git
       - name: Build libarchive (Static)
@@ -28,14 +29,14 @@ jobs:
         run: |
           cd unrar-free
           autoreconf -f -i
-          # LIBS incluye todas las dependencias que libarchive.a no puede resolver solo en modo estático
-          ./configure LDFLAGS="-static" LIBS="-larchive -largp -lzstd -llzma -lbz2 -lz -lacl -lattr -lcrypto"
-          make -j$(nproc)
+          # Quitamos el flag -static del configure para evitar el error de prueba del compilador
+          # Lo inyectamos directamente en el paso de compilación final
+          ./configure
+          make -j$(nproc) LDFLAGS="-static" LIBS="-larchive -largp -lzstd -llzma -lbz2 -lz -lacl -lattr -lcrypto"
       - name: Binary Check
         run: |
           ls -lh unrar-free/unrar-free
           file unrar-free/unrar-free
-          # Verificamos que no dependa de librerías externas (debe decir 'statically linked')
           ldd unrar-free/unrar-free || true
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
