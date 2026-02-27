@@ -1,5 +1,5 @@
 ---
-name: Build unrar-free (Static libarchive)
+name: Build unrar-free (Fix argp.h)
 on:
   workflow_dispatch: null
 jobs:
@@ -11,7 +11,8 @@ jobs:
         run: |
           apk add build-base autoconf automake libtool git \
                   acl-dev attr-dev bzip2-dev expat-dev lz4-dev \
-                  openssl-dev xz-dev zlib-dev zstd-dev bsd-compat-headers
+                  openssl-dev xz-dev zlib-dev zstd-dev bsd-compat-headers \
+                  argp-standalone
       - name: Checkout libarchive
         run: git clone --depth 1 https://github.com/libarchive/libarchive.git
       - name: Build libarchive (Static)
@@ -27,7 +28,8 @@ jobs:
         run: |
           cd unrar-free
           autoreconf -f -i
-          ./configure LDFLAGS="-static"
+          # Añadimos -largp a los LDFLAGS para que encuentre las funciones de argp.h
+          ./configure LDFLAGS="-static -largp"
           make -j$(nproc)
       - name: Binary Check
         run: |
