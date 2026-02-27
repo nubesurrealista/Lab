@@ -1,5 +1,5 @@
 ---
-name: Build unrar-free (Fix argp.h)
+name: Build unrar-free (Final Static Fix)
 on:
   workflow_dispatch: null
 jobs:
@@ -28,13 +28,15 @@ jobs:
         run: |
           cd unrar-free
           autoreconf -f -i
-          # Añadimos -largp a los LDFLAGS para que encuentre las funciones de argp.h
-          ./configure LDFLAGS="-static -largp"
+          # LIBS incluye todas las dependencias que libarchive.a no puede resolver solo en modo estático
+          ./configure LDFLAGS="-static" LIBS="-larchive -largp -lzstd -llzma -lbz2 -lz -lacl -lattr -lcrypto"
           make -j$(nproc)
       - name: Binary Check
         run: |
           ls -lh unrar-free/unrar-free
           file unrar-free/unrar-free
+          # Verificamos que no dependa de librerías externas (debe decir 'statically linked')
+          ldd unrar-free/unrar-free || true
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
