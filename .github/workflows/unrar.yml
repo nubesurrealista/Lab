@@ -1,0 +1,40 @@
+---
+name: Build unrar-free (Static libarchive)
+on:
+  workflow_dispatch: null
+jobs:
+  alpine-build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Install System Dependencies
+        run: |
+          apk add build-base autoconf automake libtool git \
+                  acl-dev attr-dev bzip2-dev expat-dev lz4-dev \
+                  openssl-dev xz-dev zlib-dev zstd-dev bsd-compat-headers
+      - name: Checkout libarchive
+        run: git clone --depth 1 https://github.com/libarchive/libarchive.git
+      - name: Build libarchive (Static)
+        run: |
+          cd libarchive
+          /bin/sh build/autogen.sh
+          ./configure --prefix=/usr --enable-static --disable-shared --without-xml2
+          make -j$(nproc)
+          make install
+      - name: Checkout unrar-free
+        run: git clone --depth 1 https://gitlab.com/bgermann/unrar-free.git
+      - name: Build unrar-free
+        run: |
+          cd unrar-free
+          autoreconf -f -i
+          ./configure LDFLAGS="-static"
+          make -j$(nproc)
+      - name: Binary Check
+        run: |
+          ls -lh unrar-free/unrar-free
+          file unrar-free/unrar-free
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unrar-free-static
+          path: unrar-free/unrar-free
