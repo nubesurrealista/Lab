@@ -1,5 +1,5 @@
 ---
-name: Build unrar-free (Static Final Fix v2)
+name: Build unrar-free (Final Release)
 on:
   workflow_dispatch: null
 jobs:
@@ -31,16 +31,19 @@ jobs:
           cd unrar-free
           autoreconf -f -i
           ./configure
-          # Añadimos -lexpat por si acaso libarchive lo incluyó, 
-          # aunque ahora intentamos forzar que no lo use con --without-expat arriba.
+          # Enlazamos todo en un solo binario monolítico
           make -j$(nproc) LDFLAGS="-static" LIBS="-larchive -largp -lzstd -llzma -lbz2 -lz -lacl -lattr -lcrypto -lexpat"
-      - name: Binary Check
+      - name: Binary Optimization and Check
         run: |
-          ls -lh unrar-free/unrar-free
-          file unrar-free/unrar-free
-          ldd unrar-free/unrar-free || true
+          # El binario se genera dentro de la carpeta src
+          cd unrar-free/src
+          # Eliminamos símbolos de depuración para reducir el peso (de ~10MB a ~2MB aprox)
+          strip unrar-free
+          ls -lh unrar-free
+          file unrar-free
+          ldd unrar-free || true
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: unrar-free-static
-          path: unrar-free/unrar-free
+          name: unrar-free-alpine-static
+          path: unrar-free/src/unrar-free
