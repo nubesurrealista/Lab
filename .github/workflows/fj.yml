@@ -1,0 +1,66 @@
+name: build-fj-musl
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    env:
+      HOME: /root
+      BUILD_TYPE: testing
+    steps:
+      - name: Install system dependencies
+        shell: sh
+        run: |
+          apk update
+          apk add --no-cache \
+            curl \
+            git \
+            pkgconfig \
+            openssl-dev \
+            openssl-libs-static \
+            build-base \
+            ca-certificates \
+            doas
+          echo "permit nopass root" > /etc/doas.conf
+
+      - name: Install Rust
+        shell: sh
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Clone forgejo-cli
+        shell: sh
+        run: |
+          git clone https://codeberg.org/forgejo-contrib/forgejo-cli.git
+          ls -la forgejo-cli
+
+      - name: Prepare build
+        shell: sh
+        run: |
+          . "$HOME/.cargo/env"
+          cd forgejo-cli
+          cargo fetch --locked
+
+      - name: Build
+        shell: sh
+        run: |
+          . "$HOME/.cargo/env"
+          cd forgejo-cli
+          cargo build --release --no-default-features
+
+      - name: Test
+        shell: sh
+        run: |
+          . "$HOME/.cargo/env"
+          cd forgejo-cli
+          cargo test --release --no-default-features
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fj-musl-binary
+          path: forgejo-cli/target/release/fj
