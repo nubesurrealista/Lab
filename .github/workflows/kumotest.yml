@@ -1,5 +1,5 @@
 ---
-name: Kumo Cross-Platform Reproducibility
+name: Kumo Reproducibility Check (Dual-Build Isolation)
 on:
   workflow_dispatch: null
 jobs:
@@ -8,39 +8,55 @@ jobs:
     steps:
       - name: Checkout workflow repo
         uses: actions/checkout@v6
-      - name: Clone Kumo source
-        run: |
-          git clone --depth 1 https://github.com/nubesurrealista/Kumo.git
-      - name: Build A (Native Runner - Ubuntu)
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
+      - name: Clone Source for Build A
+        run: git clone --depth 1 https://github.com/nubesurrealista/Kumo.git Kumo_A
       - name: Run Build A
         run: |
-          cd Kumo
+          cd Kumo_A
+          export GRADLE_USER_HOME=$HOME/.gradle_a
+          chmod +x gradlew
           ./gradlew assembleRelease
           mkdir -p ../build_outputs
           cp app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk ../build_outputs/build_a.apk
-      - name: Build B (Docker Container - Debian 13 Trixie)
+      - name: Clone Source for Build B
+        run: git clone --depth 1 https://github.com/nubesurrealista/Kumo.git Kumo_B
+      - name: Run Build B (Isolated)
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/Kumo:/project \
-            -w /project \
-            debian:trixie-slim \
-            bash -c "apt update && apt install -y openjdk-21-jdk-headless && chmod +x gradlew && ./gradlew clean assembleRelease"
-          cp Kumo/app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk build_outputs/build_b.apk
-      - name: Install Analysis Tools (Host)
+          cd Kumo_B
+          export GRADLE_USER_HOME=$HOME/.gradle_b
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          mkdir -p ../build_outputs
+          cp app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk ../build_outputs/build_b.apk
+      - name: Install Analysis Tools
         run: |
           sudo apt update
           sudo apt install -y diffoscope apktool
-      - name: Compare Build A vs Build B
+      - name: Compare APKs
+        id: compare
         run: |
-          diffoscope --html report.html build_outputs/build_a.apk build_outputs/build_b.apk || echo "DIFFERENCES FOUND"
+          echo "Comparando hashes SHA256..."
+          sha256sum build_outputs/build_a.apk build_outputs/build_b.apk
+
+          echo "Ejecutando Diffoscope para validación bit a bit..."
+          if diffoscope --html report.html build_outputs/build_a.apk build_outputs/build_b.apk; then
+            echo "**********************************************************"
+            echo "REPRODUCIBILIDAD CONFIRMADA: LOS APKS SON IDÉNTICOS"
+            echo "**********************************************************"
+          else
+            echo "**********************************************************"
+            echo "FALLO: SE ENCONTRARON DIFERENCIAS EN LAS BUILDS"
+            echo "**********************************************************"
+            exit 1
+          fi
       - name: Upload Comparison Report
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: repro-report-cross-env
+          name: reproducibility-report
           path: report.html
