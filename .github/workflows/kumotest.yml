@@ -1,7 +1,14 @@
 ---
 name: Kumo test build (External Clone)
 on:
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      custom_notes:
+        description: Release notes
+        required: false
+        default: ''
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,6 +18,13 @@ jobs:
       - name: Clone Kumo source
         run: |
           git clone --branch test --depth 1 https://github.com/nubesurrealista/Kumo.git
+      - name: Get version info
+        id: version_info
+        run: |
+          VERSION_NAME=$(grep 'versionName =' Kumo/app/build.gradle.kts | cut -d '"' -f 2)
+          SHORT_SHA=$(cd Kumo && git rev-parse --short HEAD)
+          echo "VERSION=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          echo "TAG=v${VERSION_NAME}-test-${SHORT_SHA}" >> $GITHUB_OUTPUT
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
@@ -19,6 +33,20 @@ jobs:
           cache: gradle
       - name: Decode keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
+      - name: Extract signature hash
+        id: hash_info
+        run: |
+          SIGNATURE_HASH=$(keytool -list -v -keystore Kumo/app/nube.p12 -storepass "${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" | grep "SHA256:" | head -n 1 | awk '{print $2}')
+          echo "SHA256=${SIGNATURE_HASH}" >> $GITHUB_OUTPUT
+      - name: Generate test changelog file
+        run: |
+          echo "> [!WARNING]" > test_notes.md
+          echo "> This is a test version and may be unstable. Use with caution." >> test_notes.md
+          echo "" >> test_notes.md
+          echo "${{ github.event.inputs.custom_notes }}" >> test_notes.md
+          echo "" >> test_notes.md
+          echo "### Signature Fingerprint (SHA-256)" >> test_notes.md
+          echo "\`${{ steps.hash_info.outputs.SHA256 }}\`" >> test_notes.md
       - name: Build release APKs
         run: |
           cd Kumo
@@ -44,11 +72,15 @@ jobs:
               exit 1
             fi
           done
-      - name: Upload APKs as Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: kumo-test-builds
-          path: Kumo/app/build/outputs/apk/release/kumo-*-test.apk
+      - name: Create Test Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version_info.outputs.TAG }}" \
+            --title "Kumo Test Build ${{ steps.version_info.outputs.VERSION }} (${{ steps.version_info.outputs.TAG }})" \
+            --notes-file test_notes.md \
+            --prerelease \
+            Kumo/app/build/outputs/apk/release/kumo-*-test.apk
       - name: Cleanup keystore
         if: always()
         run: rm -f Kumo/app/nube.p12
