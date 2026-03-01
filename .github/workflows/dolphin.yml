@@ -59,7 +59,7 @@ jobs:
           cpack -G DEB
 
       - name: Upload DEB artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dolphin-deb
           path: dolphin/build/*.deb

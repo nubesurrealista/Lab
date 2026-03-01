@@ -70,7 +70,7 @@ jobs:
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
       - name: Upload Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
