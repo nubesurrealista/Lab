@@ -21,7 +21,7 @@ jobs:
 
           ls -R out/
       - name: Upload Librespeed Binary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: librespeed-cli-alpine
           path: speedtest-cli/out/librespeed-cli-*
