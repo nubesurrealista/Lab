@@ -29,13 +29,15 @@ jobs:
         working-directory: yazi
         env:
           RUSTFLAGS: '-C target-feature=+crt-static'
+          CFLAGS: '-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64'
         run: |
           cargo ndk \
             -t armeabi-v7a \
+            -p 24 \
             build --release --locked --bin yazi
           ls -la target/armv7-linux-androideabi/release/yazi
           file target/armv7-linux-androideabi/release/yazi
-      - name: Strip el binario
+      - name: Strip
         working-directory: yazi
         run: |
           ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip \
