@@ -1,0 +1,47 @@
+---
+name: Build Joshuto Latest for Android ARMv7
+on:
+  workflow_dispatch: null
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-linux-androideabi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          add-to-path: true
+          local-cache: true
+      - name: Clone Joshuto repository (Latest)
+        run: |
+          git clone https://github.com/kamiyaa/joshuto.git
+          cd joshuto
+      - name: Build Joshuto for Android ARMv7
+        working-directory: joshuto
+        env:
+          RUSTFLAGS: '-C target-feature=+crt-static'
+        run: |
+          cargo ndk -t armeabi-v7a -p 24 build --release --locked
+
+          ls -la target/armv7-linux-androideabi/release/joshuto
+          file target/armv7-linux-androideabi/release/joshuto
+      - name: Strip el binario
+        working-directory: joshuto
+        run: |
+          ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip \
+            target/armv7-linux-androideabi/release/joshuto || true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: joshuto-android-armv7
+          path: joshuto/target/armv7-linux-androideabi/release/joshuto
+          if-no-files-found: error
