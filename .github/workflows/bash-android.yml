@@ -8,26 +8,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clone Sonelli Repo
+      - name: Clone
+        run: git clone https://github.com/Sonelli/android-bash.git .
+
+      - name: Build
+        run: docker build -t sonelli/android-bash .
+
+      - name: Prep
         run: |
-          git clone https://github.com/Sonelli/android-bash.git .
+          mkdir -p output
+          chmod 777 output
 
-      - name: Build Docker Image
+      - name: Run
+        run: docker run --name bash_builder -v $(pwd)/output:/target sonelli/android-bash || true
+
+      - name: Extract
         run: |
-          docker build -t sonelli/android-bash .
-
-      - name: Create output directory
-        run: mkdir -p dist
-
-      - name: Run Automated Build
+          docker cp bash_builder:/home/admin/output/. ./output_extracted || true
+          docker cp bash_builder:/home/admin/bash-5.3/output/. ./output_extracted_alt || true
+          
+      - name: Inspect
         run: |
-          docker run --rm -v $(pwd)/dist:/target sonelli/android-bash
-
-      - name: List files
-        run: find dist
-
-      - name: Upload ARMv7 PIE Binary
+          find . -maxdepth 6 -name "bash" -executable
+          
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: bash-android-armv7
-          path: dist/arm/pie/bash
+          path: |
+            output/**/arm/pie/bash
+            output_extracted/**/arm/pie/bash
+            output_extracted_alt/**/arm/pie/bash
+          if-no-files-found: error
