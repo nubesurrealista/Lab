@@ -30,7 +30,9 @@ jobs:
         env:
           RUSTFLAGS: '-C target-feature=+crt-static'
         run: |
-          cargo ndk -t armeabi-v7a -p 24 build --release --locked
+          cargo ndk \
+            -t armeabi-v7a \
+            build --release --locked
 
           ls -la target/armv7-linux-androideabi/release/joshuto
           file target/armv7-linux-androideabi/release/joshuto
@@ -45,3 +47,4 @@ jobs:
           name: joshuto-android-armv7
           path: joshuto/target/armv7-linux-androideabi/release/joshuto
           if-no-files-found: error
+          retention-days: 1
