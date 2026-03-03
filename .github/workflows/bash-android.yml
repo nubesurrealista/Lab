@@ -1,0 +1,33 @@
+name: Build Android Bash ARMv7
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Sonelli Repo
+        run: |
+          git clone https://github.com/Sonelli/android-bash.git .
+
+      - name: Build Docker Image
+        run: |
+          docker build -t sonelli/android-bash .
+
+      - name: Create output directory
+        run: mkdir -p dist
+
+      - name: Run Automated Build
+        run: |
+          docker run --rm -v $(pwd)/dist:/target sonelli/android-bash
+
+      - name: List files
+        run: find dist
+
+      - name: Upload ARMv7 PIE Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: bash-android-armv7
+          path: dist/arm/pie/bash
