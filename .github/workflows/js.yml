@@ -25,6 +25,11 @@ jobs:
         run: |
           git clone https://github.com/kamiyaa/joshuto.git
           cd joshuto
+      - name: Patch for ARMv7 32-bit compatibility
+        working-directory: joshuto
+        run: |
+          sed -i 's/from_bits_truncate(metadata_mode)/from_bits_truncate(metadata_mode as mode_t)/g' src/fs/metadata.rs
+          sed -i '1i use libc::mode_t;' src/fs/metadata.rs
       - name: Build Joshuto for Android ARMv7
         working-directory: joshuto
         env:
