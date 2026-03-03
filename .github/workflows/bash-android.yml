@@ -22,21 +22,13 @@ jobs:
       - name: Run
         run: docker run --name bash_builder -v $(pwd)/output:/target sonelli/android-bash || true
 
-      - name: Extract
-        run: |
-          docker cp bash_builder:/home/admin/output/. ./output_extracted || true
-          docker cp bash_builder:/home/admin/bash-5.3/output/. ./output_extracted_alt || true
-          
       - name: Inspect
         run: |
-          find . -maxdepth 6 -name "bash" -executable
+          find output -name "bash" -executable
           
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: bash-android-armv7
-          path: |
-            output/**/arm/pie/bash
-            output_extracted/**/arm/pie/bash
-            output_extracted_alt/**/arm/pie/bash
+          path: output/armv7a/pie/bash
           if-no-files-found: error
