@@ -16,8 +16,13 @@ jobs:
           sed -i '/NoExtract  = usr\/share\/locale\/\*/d' /etc/pacman.conf
           sed -i '/NoExtract   = !*locale*\/en*/d' /etc/pacman.conf
           
-          pacman -Sy --noconfirm
-          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc glibc libx11 libxkbcommon libxtst libxrandr libxcomposite libxdamage libxext libxfixes libatk-1.0 libatk-bridge-2.0 libcairo libcups libdbus-1 libexpat libfontconfig libgbm libgcc_s libgdk_pixbuf-2.0 libglib-2.0 libgtk-3 libnspr libnss3 libpango-1.0 libpangocairo-1.0 libstdc++ libvulkan1 libxshmfence mesa-utils
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb \
+            gcc glibc libx11 libxkbcommon libxtst libxrandr libxcomposite libxdamage libxext libxfixes \
+            atk at-spi2-core cairo cups dbus expat fontconfig libgbm gdk-pixbuf2 glib2 gtk3 nspr nss \
+            pango vulkan-icd-loader libxshmfence mesa flac libsm librsvg libtiff libxcb xcb-util-cursor \
+            xcb-util-keysyms xcb-util-wm
           
           echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
           locale-gen
@@ -28,21 +33,20 @@ jobs:
         run: |
           LATEST_URL=$(curl -s https://api.github.com/repos/OpenHub-Store/GitHub-Store/releases/latest | grep "browser_download_url.*_amd64.deb" | cut -d '"' -f 4)
           wget "$LATEST_URL" -O github-store.deb
+          
           bsdtar -xf github-store.deb
           bsdtar -xf data.tar.xz
           
-          mkdir -p /opt/github-store
-          cp -r opt/github-store/* /opt/github-store/ 2>/dev/null || cp -r opt/GitHub\ Store/* /opt/github-store/
+          mkdir -p ./AppDir/bin
+          cp -r opt/github-store/* ./AppDir/bin/ 2>/dev/null || cp -r opt/GitHub\ Store/* ./AppDir/bin/
+          chmod +x ./AppDir/bin/bin/GitHub-Store
           
-          chmod +x /opt/github-store/bin/GitHub-Store
-          ln -s /opt/github-store/bin/GitHub-Store /usr/bin/GitHub-Store
-
       - name: Prepare Workspace and Tools
         run: |
-          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/quick-sharun.sh" -O ./quick-sharun
+          wget "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/quick-sharun.sh" -O ./quick-sharun
           chmod +x ./quick-sharun
 
-          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/get-debloated-pkgs.sh" -O ./get-debloated-pkgs
+          wget "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/get-debloated-pkgs.sh" -O ./get-debloated-pkgs
           chmod +x ./get-debloated-pkgs
 
           curl -fsSL "https://github.com/VHSgunzo/sharun/releases/latest/download/sharun-x86_64" -o /usr/local/bin/sharun
@@ -62,7 +66,6 @@ jobs:
           Categories=Development;
           Comment=Cross-platform app store for GitHub releases
           EOF
-          sed -i 's/^[[:space:]]*//' build_dir/github-store.desktop
           
           find . -name "app_icon.png" -exec cp {} build_dir/icon.png \; 2>/dev/null || \
           curl -L https://github.com/OpenHub-Store/GitHub-Store/raw/main/composeApp/src/desktopMain/resources/icon.png -o build_dir/icon.png
@@ -71,23 +74,18 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           ANYLINUX_LIB: 1
-          DEPLOY_LOCALE: 1
-          DEBLOAT_LOCALE: 0
-          STRACE_MODE: 1
           DEPLOY_OPENGL: 1
           DEPLOY_VULKAN: 1
-          LANG: es_ES.UTF-8
-          LC_ALL: es_ES.UTF-8
+          STRACE_MODE: 1
+          STRIP: 1
+          ADD_HOOKS: "fix-namespaces.hook:vulkan-check.src.hook"
         run: |
           export ARCH=$(uname -m)
-          export VERSION=$(date +%Y%m%d)
-          export OUTPATH="./dist"
           export ICON="build_dir/icon.png"
           export DESKTOP="build_dir/github-store.desktop"
-          export STRIP=1
+          export OUTPATH="./dist"
 
-          xvfb-run ./quick-sharun /usr/bin/GitHub-Store \
-            /opt/github-store/lib/*.so \
+          xvfb-run ./quick-sharun ./AppDir/bin/bin/GitHub-Store \
             /usr/lib/libnss3.so \
             /usr/lib/libnssutil3.so \
             /usr/lib/libsmime3.so \
@@ -99,5 +97,5 @@ jobs:
       - name: Upload AppImage Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GitHub-Store-AnyLinux-AppImage
+          name: GitHub-Store-AnyLinux
           path: ./dist/*
