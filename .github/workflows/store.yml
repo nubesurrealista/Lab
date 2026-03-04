@@ -1,0 +1,103 @@
+name: GitHub Store AnyLinux Packager
+on:
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    name: Package GitHub Store AnyLinux
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    
+    steps:
+      - name: Install Base System Dependencies
+        run: |
+          sed -i '/NoExtract  = usr\/share\/locale\/\*/d' /etc/pacman.conf
+          sed -i '/NoExtract   = !*locale*\/en*/d' /etc/pacman.conf
+          
+          pacman -Sy --noconfirm
+          pacman -S --noconfirm wget curl ca-certificates binutils desktop-file-utils grep sed coreutils zsync xorg-server-xvfb gcc glibc libx11 libxkbcommon libxtst libxrandr libxcomposite libxdamage libxext libxfixes libatk-1.0 libatk-bridge-2.0 libcairo libcups libdbus-1 libexpat libfontconfig libgbm libgcc_s libgdk_pixbuf-2.0 libglib-2.0 libgtk-3 libnspr libnss3 libpango-1.0 libpangocairo-1.0 libstdc++ libvulkan1 libxshmfence mesa-utils
+          
+          echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
+          locale-gen
+          export LANG=es_ES.UTF-8
+          export LC_ALL=es_ES.UTF-8
+
+      - name: Download and Extract DEB
+        run: |
+          LATEST_URL=$(curl -s https://api.github.com/repos/OpenHub-Store/GitHub-Store/releases/latest | grep "browser_download_url.*_amd64.deb" | cut -d '"' -f 4)
+          wget "$LATEST_URL" -O github-store.deb
+          bsdtar -xf github-store.deb
+          bsdtar -xf data.tar.xz
+          
+          mkdir -p /opt/github-store
+          cp -r opt/github-store/* /opt/github-store/ 2>/dev/null || cp -r opt/GitHub\ Store/* /opt/github-store/
+          
+          chmod +x /opt/github-store/bin/GitHub-Store
+          ln -s /opt/github-store/bin/GitHub-Store /usr/bin/GitHub-Store
+
+      - name: Prepare Workspace and Tools
+        run: |
+          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/quick-sharun.sh" -O ./quick-sharun
+          chmod +x ./quick-sharun
+
+          wget --retry-connrefused --tries=30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/main/useful-tools/get-debloated-pkgs.sh" -O ./get-debloated-pkgs
+          chmod +x ./get-debloated-pkgs
+
+          curl -fsSL "https://github.com/VHSgunzo/sharun/releases/latest/download/sharun-x86_64" -o /usr/local/bin/sharun
+          chmod +x /usr/local/bin/sharun
+
+          ./get-debloated-pkgs --add-mesa --add-common --prefer-nano
+
+      - name: Create Desktop Entry
+        run: |
+          mkdir -p build_dir
+          cat << 'EOF' > build_dir/github-store.desktop
+          [Desktop Entry]
+          Type=Application
+          Name=GitHub Store
+          Exec=GitHub-Store
+          Icon=github-store
+          Categories=Development;
+          Comment=Cross-platform app store for GitHub releases
+          EOF
+          sed -i 's/^[[:space:]]*//' build_dir/github-store.desktop
+          
+          find . -name "app_icon.png" -exec cp {} build_dir/icon.png \; 2>/dev/null || \
+          curl -L https://github.com/OpenHub-Store/GitHub-Store/raw/main/composeApp/src/desktopMain/resources/icon.png -o build_dir/icon.png
+
+      - name: Build AppImage
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ANYLINUX_LIB: 1
+          DEPLOY_LOCALE: 1
+          DEBLOAT_LOCALE: 0
+          STRACE_MODE: 1
+          DEPLOY_OPENGL: 1
+          DEPLOY_VULKAN: 1
+          LANG: es_ES.UTF-8
+          LC_ALL: es_ES.UTF-8
+        run: |
+          export ARCH=$(uname -m)
+          export VERSION=$(date +%Y%m%d)
+          export OUTPATH="./dist"
+          export ICON="build_dir/icon.png"
+          export DESKTOP="build_dir/github-store.desktop"
+          export STRIP=1
+
+          xvfb-run ./quick-sharun /usr/bin/GitHub-Store \
+            /opt/github-store/lib/*.so \
+            /usr/lib/libnss3.so \
+            /usr/lib/libnssutil3.so \
+            /usr/lib/libsmime3.so \
+            /usr/lib/libssl3.so \
+            /usr/lib/gconv/*
+
+          ./quick-sharun --make-appimage
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitHub-Store-AnyLinux-AppImage
+          path: ./dist/*
