@@ -25,7 +25,7 @@ jobs:
             gcc glibc libx11 libxkbcommon libxtst libxrandr libxcomposite libxdamage libxext libxfixes \
             atk at-spi2-core cairo cups dbus expat fontconfig mesa-utils gdk-pixbuf2 glib2 gtk3 nspr nss \
             pango vulkan-icd-loader libxshmfence mesa flac libsm librsvg libtiff libxcb xcb-util-cursor \
-            xcb-util-keysyms xcb-util-wm
+            xcb-util-keysyms xcb-util-wm libva-intel-driver
           
           echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
           locale-gen
@@ -34,7 +34,7 @@ jobs:
 
       - name: Download and Extract DEB
         run: |
-          LATEST_URL=$(curl -s https://api.github.com/repos/OpenHub-Store/GitHub-Store/releases/latest | grep "browser_download_url.*_amd64.deb" | cut -d '"' -f 4)
+          LATEST_URL=$(curl -s https://api.github.com/repos/OpenHub-Store/GitHub-Store/releases/latest | grep "browser_download_url.*_amd64.deb" | cut -d '"' -f 4 | head -n 1)
           wget "$LATEST_URL" -O github-store.deb
           
           bsdtar -xf github-store.deb
