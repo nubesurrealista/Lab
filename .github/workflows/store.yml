@@ -25,7 +25,7 @@ jobs:
             gcc glibc libx11 libxkbcommon libxtst libxrandr libxcomposite libxdamage libxext libxfixes \
             atk at-spi2-core cairo cups dbus expat fontconfig mesa-utils gdk-pixbuf2 glib2 gtk3 nspr nss \
             pango vulkan-icd-loader libxshmfence mesa flac libsm librsvg libtiff libxcb xcb-util-cursor \
-            xcb-util-keysyms xcb-util-wm libva-intel-driver p7zip
+            xcb-util-keysyms xcb-util-wm libva-intel-driver p7zip zstd openjdk21-src
           
           echo "es_ES.UTF-8 UTF-8" >> /etc/locale.gen
           locale-gen
@@ -38,7 +38,7 @@ jobs:
           wget "$LATEST_URL" -O github-store.deb
           
           7z x github-store.deb
-          7z x data.tar.*
+          zstd -d data.tar.zst
           7z x data.tar
           
           mkdir -p ./AppDir/bin
@@ -68,10 +68,10 @@ jobs:
           Exec=GitHub-Store
           Icon=github-store
           Categories=Development;
-          Comment=Cross-platform app store for GitHub releases
+          Comment=A free, open-source app store for GitHub releases
           EOF
           
-          find . -name "app_icon.png" -exec cp {} build_dir/icon.png \; 2>/dev/null || \
+          find ./AppDir -name "*.png" -exec cp {} build_dir/icon.png \; -quit 2>/dev/null || \
           curl -L https://github.com/OpenHub-Store/GitHub-Store/raw/main/composeApp/src/desktopMain/resources/icon.png -o build_dir/icon.png
 
       - name: Build AppImage
@@ -94,6 +94,8 @@ jobs:
             /usr/lib/libnssutil3.so \
             /usr/lib/libsmime3.so \
             /usr/lib/libssl3.so \
+            /usr/lib/libsoftokn3.so \
+            /usr/lib/libfreeblpriv3.so \
             /usr/lib/gconv/*
 
           ./quick-sharun --make-appimage
