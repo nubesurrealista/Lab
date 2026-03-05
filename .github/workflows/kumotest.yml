@@ -15,7 +15,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
       - name: Inject Task Dependency Fix
         run: |
           cat <<EOF >> Kumo/app/build.gradle.kts
@@ -31,7 +30,13 @@ jobs:
       - name: Build release APKs
         run: |
           cd Kumo
-          ./gradlew clean assembleRelease --stacktrace --parallel --max-workers=$(nproc)
+          ./gradlew clean assembleRelease \
+            --stacktrace \
+            --parallel \
+            --max-workers=$(nproc) \
+            --no-build-cache \
+            --no-configuration-cache \
+            --no-daemon
       - name: Sign APKs
         run: |
           ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
