@@ -15,18 +15,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Patch i18n Build Logic
-        run: |
-          sed -i '/tasks {/,/}/c\
-          tasks {\
-              val localesConfigTask = project.getLocalesConfigTask(generatedAndroidResourceDir)\
-              withType<com.android.build.gradle.tasks.MergeResources>().configureEach {\
-                  dependsOn(localesConfigTask)\
-              }\
-              preBuild {\
-                  dependsOn(localesConfigTask)\
-              }\
-          }' Kumo/i18n/build.gradle.kts
       - name: Decode keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
       - name: Build release APKs
