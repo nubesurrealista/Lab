@@ -20,10 +20,11 @@ jobs:
       - name: Build release APKs
         run: |
           cd Kumo
-          ./gradlew assembleRelease \
-            --stacktrace \
+          ./gradlew clean assembleRelease \
             --no-build-cache \
-            --no-daemon
+            --no-configuration-cache \
+            --no-daemon \
+            --stacktrace
       - name: Sign APKs
         run: |
           ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
