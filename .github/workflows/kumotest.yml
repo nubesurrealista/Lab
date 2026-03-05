@@ -1,4 +1,4 @@
-name: Kumo Professional Path Build
+name: Kumo external test build
 on:
   workflow_dispatch: null
 jobs:
@@ -15,24 +15,24 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Inject Resource Path via Sed
+      - name: Patch i18n Build Logic
         run: |
-          sed -i '/android {/a \    sourceSets.getByName("main") { res.srcDirs("../i18n/build/generated/mihon/android/res") }' Kumo/app/build.gradle.kts
-          
-          cat <<EOF >> Kumo/app/build.gradle.kts
-
-          tasks.configureEach {
-              if (name.startsWith("process") && name.endsWith("Resources")) {
-                  dependsOn(project(":i18n").tasks.matching { it.name == "generateLocalesConfig" })
-              }
-          }
-          EOF
+          sed -i '/tasks {/,/}/c\
+          tasks {\
+              val localesConfigTask = project.getLocalesConfigTask(generatedAndroidResourceDir)\
+              withType<com.android.build.gradle.tasks.MergeResources>().configureEach {\
+                  dependsOn(localesConfigTask)\
+              }\
+              preBuild {\
+                  dependsOn(localesConfigTask)\
+              }\
+          }' Kumo/i18n/build.gradle.kts
       - name: Decode keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
       - name: Build release APKs
         run: |
           cd Kumo
-          ./gradlew clean assembleRelease \
+          ./gradlew assembleRelease \
             --stacktrace \
             --parallel \
             --max-workers=$(nproc) \
