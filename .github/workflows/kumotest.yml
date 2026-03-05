@@ -17,7 +17,7 @@ jobs:
           java-version: '21'
       - name: Patch i18n Build Logic
         run: |
-          cat > Kumo/i18n/build.gradle.kts <<EOF
+          cat > Kumo/i18n/build.gradle.kts << 'EOF'
           import mihon.buildlogic.generatedBuildDir
           import mihon.buildlogic.tasks.getLocalesConfigTask
           import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
@@ -66,10 +66,8 @@ jobs:
 
           tasks {
               val localesConfigTask = project.getLocalesConfigTask(generatedAndroidResourceDir)
-              android.libraryVariants.all {
-                  registerGeneratedResFolders(
-                      project.files(generatedAndroidResourceDir).builtBy(localesConfigTask)
-                  )
+              matching { it.name == "preBuild" }.configureEach {
+                  dependsOn(localesConfigTask)
               }
           }
           EOF
