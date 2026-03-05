@@ -1,4 +1,4 @@
-name: Kumo Direct Path Build
+name: Kumo Professional Path Build
 on:
   workflow_dispatch: null
 jobs:
@@ -15,15 +15,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Link Generated Resources to App
+      - name: Inject Resource Path via Sed
         run: |
+          sed -i '/android {/a \    sourceSets.getByName("main") { res.srcDirs("../i18n/build/generated/mihon/android/res") }' Kumo/app/build.gradle.kts
+          
           cat <<EOF >> Kumo/app/build.gradle.kts
-
-          android {
-              sourceSets.getByName("main") {
-                  res.srcDirs("../i18n/build/generated/mihon/android/res")
-              }
-          }
 
           tasks.configureEach {
               if (name.startsWith("process") && name.endsWith("Resources")) {
