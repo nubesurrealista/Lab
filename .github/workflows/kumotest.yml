@@ -1,9 +1,9 @@
-name: Kumo test build (External Clone)
+name: Kumo test build (macOS Clone)
 on:
   workflow_dispatch: null
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Checkout workflow repo
         uses: actions/checkout@v6
@@ -24,12 +24,12 @@ jobs:
           ./gradlew clean assembleRelease --stacktrace
       - name: Sign APKs
         run: |
-          ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
+          APKSIGNER=$(find $ANDROID_SDK_ROOT/build-tools -name apksigner | sort -V | tail -n 1)
           for arch in armeabi-v7a arm64-v8a; do
             UNSIGNED="Kumo/app/build/outputs/apk/release/app-$arch-release-unsigned.apk"
             SIGNED="Kumo/app/build/outputs/apk/release/kumo-$arch-test.apk"
             if [ -f "$UNSIGNED" ]; then
-              "$ANDROID_BUILD_TOOLS/apksigner" sign \
+              "$APKSIGNER" sign \
                 --ks Kumo/app/nube.p12 \
                 --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
                 --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
