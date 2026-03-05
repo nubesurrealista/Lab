@@ -22,7 +22,7 @@ jobs:
       - name: Build release APKs
         run: |
           cd Kumo
-          ./gradlew clean assembleRelease --no-build-cache --no-configuration-cache --no-daemon --stacktrace
+          ./gradlew assembleRelease --stacktrace --parallel --max-workers=$(nproc)
       - name: Sign APKs
         run: |
           ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
