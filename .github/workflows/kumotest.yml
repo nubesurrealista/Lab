@@ -22,8 +22,6 @@ jobs:
           cd Kumo
           ./gradlew assembleRelease \
             --stacktrace \
-            --parallel \
-            --max-workers=$(nproc) \
             --no-build-cache \
             --no-daemon
       - name: Sign APKs
