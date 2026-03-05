@@ -1,4 +1,4 @@
-name: Kumo Search and Rescue
+name: Kumo Final Fix Build
 on:
   workflow_dispatch: null
 jobs:
@@ -15,8 +15,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Inject Task Dependency Fix
+      - name: Inject Resource Path and Dependency Fix
         run: |
+          cat <<EOF >> Kumo/i18n/build.gradle.kts
+
+          android {
+              sourceSets.getByName("main") {
+                  res.srcDir("build/generated/mihon/android/res")
+              }
+          }
+          EOF
+
           cat <<EOF >> Kumo/app/build.gradle.kts
 
           tasks.configureEach {
@@ -25,24 +34,40 @@ jobs:
               }
           }
           EOF
-      - name: Run I18N Generation Only
-        run: |
-          cd Kumo
-          ./gradlew :i18n:generateLocalesConfig --no-build-cache
-      - name: Find Locales Config File
-        run: |
-          echo "Buscando locales_config.xml en todo el proyecto..."
-          find Kumo -name "locales_config.xml"
-          echo "Buscando cualquier recurso XML generado en i18n..."
-          find Kumo/i18n/build -name "*.xml" | head -n 20
       - name: Decode keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
       - name: Build release APKs
         run: |
           cd Kumo
-          ./gradlew assembleRelease \
+          ./gradlew clean assembleRelease \
             --stacktrace \
             --parallel \
             --max-workers=$(nproc) \
             --no-build-cache \
             --no-daemon
+      - name: Sign APKs
+        run: |
+          ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
+          for arch in armeabi-v7a arm64-v8a; do
+            UNSIGNED="Kumo/app/build/outputs/apk/release/app-$arch-release-unsigned.apk"
+            SIGNED="Kumo/app/build/outputs/apk/release/kumo-$arch-test.apk"
+            if [ -f "$UNSIGNED" ]; then
+              "$ANDROID_BUILD_TOOLS/apksigner" sign \
+                --ks Kumo/app/nube.p12 \
+                --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
+                --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+                --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
+                --v2-signing-enabled true \
+                --v3-signing-enabled true \
+                --out "$SIGNED" \
+                "$UNSIGNED"
+            fi
+          done
+      - name: Upload APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: kumo-test-builds
+          path: Kumo/app/build/outputs/apk/release/kumo-*-test.apk
+      - name: Cleanup
+        if: always()
+        run: rm -f Kumo/app/nube.p12
