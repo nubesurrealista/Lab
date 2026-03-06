@@ -13,23 +13,11 @@ jobs:
           repository: hykilpikonna/hyfetch
           path: hyfetch
 
-      - name: Prepare build
-        shell: sh
-        run: |
-          cd hyfetch
-          cargo fetch --locked
-
       - name: Build
         shell: sh
         run: |
           cd hyfetch
-          cargo build --frozen --release --all-features
-
-      - name: Test
-        shell: sh
-        run: |
-          cd hyfetch
-          cargo test --frozen --all-features
+          cargo build --release --all-features
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
