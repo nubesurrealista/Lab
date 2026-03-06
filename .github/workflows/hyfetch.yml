@@ -18,6 +18,7 @@ jobs:
         run: |
           cd hyfetch
           cargo build --release --all-features
+          strip target/x86_64-unknown-linux-musl/release/hyfetch
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
