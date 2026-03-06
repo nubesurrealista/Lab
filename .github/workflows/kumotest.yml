@@ -32,21 +32,7 @@ jobs:
             --no-configuration-cache \
             --no-daemon \
             --stacktrace \
-            --info \
             -Porg.gradle.parallel=false
-
-          # === DIAGNÓSTICO: buscar locales_config.xml después del build ===
-          echo "=== DIAGNÓSTICO POST-BUILD: dónde está locales_config.xml ==="
-          find . -name "locales_config.xml" -type f -exec echo "→ {}" \; -exec head -n 5 {} \;
-
-          echo ""
-          echo "=== Directorios generated en i18n ==="
-          ls -la i18n/build/generated 2>/dev/null || echo "No hay i18n/build/generated"
-          find i18n/build -name "*locales*" -type f 2>/dev/null || echo "No hay archivos con 'locales' en i18n/build"
-
-          echo ""
-          echo "=== Directorios generated en build raíz (head 20) ==="
-          find build -path "*generated*" -type d | head -20 || echo "No hay generated en build raíz"
 
       - name: Sign APKs
         run: |
