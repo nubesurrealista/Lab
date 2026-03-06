@@ -36,7 +36,8 @@ jobs:
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DAUDIO_SHARE_USE_VCPKG=OFF \
-            -DAUDIO_SHARE_STATIC_LIBCPP=ON
+            -DAUDIO_SHARE_STATIC_LIBCPP=ON \
+            -DProtobuf_IMPORT_DIRS=/usr/include
           cmake --build build --target server-cmd
 
       - name: Upload artifact
