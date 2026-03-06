@@ -1,50 +1,23 @@
-name: Build Hyfetch on Alpine
+name: Build Hyfetch with muslrust
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: alpine:latest
-    env:
-      HOME: /root
+    container: clux/muslrust:stable
     steps:
-      - name: Install system dependencies and doas
-        shell: sh
-        run: |
-          # Actualizar e instalar dependencias necesarias
-          apk update
-          apk add --no-cache \
-            curl \
-            git \
-            pkgconfig \
-            openssl-dev \
-            build-base \
-            ca-certificates \
-            doas
-
-          # Configurar doas para el entorno (permitir root sin password)
-          echo "permit nopass root" > /etc/doas.conf
-
-      - name: Install Rust
-        shell: sh
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          echo "PATH=$HOME/.cargo/bin:$PATH" >> $GITHUB_ENV
-
-      - name: Clone repository
-        shell: sh
-        run: |
-          git clone https://github.com/hykilpikonna/hyfetch.git
-          ls -la hyfetch
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: hykilpikonna/hyfetch
+          path: hyfetch
 
       - name: Prepare build
         shell: sh
         run: |
           cd hyfetch
-          rustc -vV
-          cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+          cargo fetch --locked
 
       - name: Build
         shell: sh
@@ -59,7 +32,7 @@ jobs:
           cargo test --frozen --all-features
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: hyfetch-alpine-binary
-          path: hyfetch/target/release/hyfetch
+          name: hyfetch-static-binary
+          path: hyfetch/target/x86_64-unknown-linux-musl/release/hyfetch
