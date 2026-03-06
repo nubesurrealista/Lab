@@ -9,7 +9,7 @@ jobs:
     env:
       HOME: /root
     steps:
-      - name: Install system dependencies and doas
+      - name: Install system dependencies
         shell: sh
         run: |
           apk update
@@ -24,22 +24,19 @@ jobs:
             cxxopts-dev \
             nlohmann-json \
             doas
-
           echo "permit nopass root" > /etc/doas.conf
 
-      - name: Clone repository
-        shell: sh
-        run: |
-          git clone https://github.com/mkckr0/audio-share.git --recursive
-          cd audio-share
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          repository: mkckr0/audio-share
+          submodules: recursive
 
       - name: Build Server CMD
         shell: sh
         run: |
-          cd audio-share
           mkdir build
           cd build
-          # Desactivamos MFC (Windows) y vcpkg para usar las librerías de Alpine
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DAUDIO_SHARE_BUILD_SERVER_CMD=ON \
@@ -51,4 +48,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: audio-share-alpine-binary
-          path: audio-share/build/server-cmd/as-cmd
+          path: build/server-cmd/as-cmd
