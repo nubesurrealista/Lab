@@ -1,0 +1,54 @@
+name: Build Audio Share on Alpine
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    env:
+      HOME: /root
+    steps:
+      - name: Install system dependencies and doas
+        shell: sh
+        run: |
+          apk update
+          apk add --no-cache \
+            git \
+            build-base \
+            cmake \
+            pipewire-dev \
+            asio-dev \
+            protobuf-dev \
+            spdlog-dev \
+            cxxopts-dev \
+            nlohmann-json \
+            doas
+
+          echo "permit nopass root" > /etc/doas.conf
+
+      - name: Clone repository
+        shell: sh
+        run: |
+          git clone https://github.com/mkckr0/audio-share.git --recursive
+          cd audio-share
+
+      - name: Build Server CMD
+        shell: sh
+        run: |
+          cd audio-share
+          mkdir build
+          cd build
+          # Desactivamos MFC (Windows) y vcpkg para usar las librerías de Alpine
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAUDIO_SHARE_BUILD_SERVER_CMD=ON \
+            -DAUDIO_SHARE_BUILD_SERVER_MFC=OFF \
+            -DAUDIO_SHARE_USE_VCPKG=OFF
+          make as-cmd
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-share-alpine-binary
+          path: audio-share/build/server-cmd/as-cmd
