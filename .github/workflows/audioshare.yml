@@ -6,8 +6,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: alpine:latest
-    env:
-      HOME: /root
     steps:
       - name: Install system dependencies
         shell: sh
@@ -23,8 +21,7 @@ jobs:
             spdlog-dev \
             cxxopts-dev \
             nlohmann-json \
-            doas
-          echo "permit nopass root" > /etc/doas.conf
+            pkgconfig
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,20 +29,18 @@ jobs:
           repository: mkckr0/audio-share
           submodules: recursive
 
-      - name: Build Server CMD
+      - name: Build
         shell: sh
         run: |
-          mkdir build
-          cd build
-          cmake .. \
+          cd server-core
+          cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DAUDIO_SHARE_BUILD_SERVER_CMD=ON \
-            -DAUDIO_SHARE_BUILD_SERVER_MFC=OFF \
-            -DAUDIO_SHARE_USE_VCPKG=OFF
-          make as-cmd
+            -DAUDIO_SHARE_USE_VCPKG=OFF \
+            -DAUDIO_SHARE_STATIC_LIBCPP=ON
+          cmake --build build --target server-cmd
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: audio-share-alpine-binary
-          path: build/server-cmd/as-cmd
+          path: server-core/build/as-cmd
