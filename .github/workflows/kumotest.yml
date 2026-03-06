@@ -1,13 +1,16 @@
-name: Kumo locales diagnostic CLEAN
+name: Kumo external test build
 
 on:
   workflow_dispatch:
 
 jobs:
-  diagnostic-clean:
+  build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout workflow repo
+        uses: actions/checkout@v6
+
       - name: Clone Kumo source
         run: |
           git clone --branch test https://github.com/nubesurrealista/Kumo.git
@@ -18,24 +21,58 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Generate locales config in clean env + find path
+      - name: Decode keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
+
+      - name: Build release APKs
         run: |
           cd Kumo
-
-          echo "=== Ejecutando clean + generación ==="
-          ./gradlew clean :i18n:generateLocalesConfig \
+          ./gradlew clean assembleRelease \
             --no-build-cache \
             --no-configuration-cache \
             --no-daemon \
             --stacktrace \
-            --info
+            --info \
+            -Porg.gradle.parallel=false
 
-          echo "=== Ruta del archivo generado (find completo) ==="
-          find . -name "locales_config.xml" -type f -exec echo "→ {}" \; -exec head -n 10 {} \;
+          # === DIAGNÓSTICO: buscar locales_config.xml después del build ===
+          echo "=== DIAGNÓSTICO POST-BUILD: dónde está locales_config.xml ==="
+          find . -name "locales_config.xml" -type f -exec echo "→ {}" \; -exec head -n 5 {} \;
 
-          echo "=== Directorios generated relevantes ==="
-          ls -la build/generated 2>/dev/null || echo "No hay build/generated"
-          find build -path "*generated*" -type d | head -20
+          echo ""
+          echo "=== Directorios generated en i18n ==="
+          ls -la i18n/build/generated 2>/dev/null || echo "No hay i18n/build/generated"
+          find i18n/build -name "*locales*" -type f 2>/dev/null || echo "No hay archivos con 'locales' en i18n/build"
 
-          echo "=== Log con --info (últimas líneas relevantes) ==="
-          grep -iE "generateLocalesConfig|locales_config|generated|mihon|res/xml" build/reports/problems/problems-report.html || echo "No matches in problems report"
+          echo ""
+          echo "=== Directorios generated en build raíz (head 20) ==="
+          find build -path "*generated*" -type d | head -20 || echo "No hay generated en build raíz"
+
+      - name: Sign APKs
+        run: |
+          ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
+          for arch in armeabi-v7a arm64-v8a; do
+            UNSIGNED="Kumo/app/build/outputs/apk/release/app-$arch-release-unsigned.apk"
+            SIGNED="Kumo/app/build/outputs/apk/release/kumo-$arch-test.apk"
+            if [ -f "$UNSIGNED" ]; then
+              "$ANDROID_BUILD_TOOLS/apksigner" sign \
+                --ks Kumo/app/nube.p12 \
+                --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
+                --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+                --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
+                --v2-signing-enabled true \
+                --v3-signing-enabled true \
+                --out "$SIGNED" \
+                "$UNSIGNED"
+            fi
+          done
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: kumo-test-builds
+          path: Kumo/app/build/outputs/apk/release/kumo-*-test.apk
+
+      - name: Cleanup
+        if: always()
+        run: rm -f Kumo/app/nube.p12
