@@ -1,13 +1,16 @@
-name: Kumo locales config diagnostic
+name: Kumo external test build
 
 on:
   workflow_dispatch:
 
 jobs:
-  diagnostic:
+  build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout workflow repo
+        uses: actions/checkout@v6
+
       - name: Clone Kumo source
         run: |
           git clone --branch test https://github.com/nubesurrealista/Kumo.git
@@ -18,22 +21,44 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Generate locales config + find exact path
+      - name: Decode keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > Kumo/app/nube.p12
+
+      - name: Build release APKs
         run: |
           cd Kumo
+          ./gradlew clean assembleRelease \
+            --no-build-cache \
+            --no-configuration-cache \
+            --no-daemon \
+            --stacktrace \
+            -Porg.gradle.parallel=false
 
-          echo "=== 1. Listando tareas relacionadas con locales ==="
-          ./gradlew :i18n:tasks --all | grep -iE 'locale|locales|config' || echo "No se encontraron tareas con 'locale'"
+      - name: Sign APKs
+        run: |
+          ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -n1)"
+          for arch in armeabi-v7a arm64-v8a; do
+            UNSIGNED="Kumo/app/build/outputs/apk/release/app-$arch-release-unsigned.apk"
+            SIGNED="Kumo/app/build/outputs/apk/release/kumo-$arch-test.apk"
+            if [ -f "$UNSIGNED" ]; then
+              "$ANDROID_BUILD_TOOLS/apksigner" sign \
+                --ks Kumo/app/nube.p12 \
+                --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" \
+                --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" \
+                --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" \
+                --v2-signing-enabled true \
+                --v3-signing-enabled true \
+                --out "$SIGNED" \
+                "$UNSIGNED"
+            fi
+          done
 
-          echo "=== 2. Ejecutando generación de locales_config.xml ==="
-          ./gradlew :i18n:generateLocalesConfig --stacktrace --console=plain || echo "⚠️ La tarea :i18n:generateLocalesConfig no existe (intentaremos alternativa)"
+      - name: Upload APKs
+        uses: actions/upload-artifact@v7
+        with:
+          name: kumo-test-builds
+          path: Kumo/app/build/outputs/apk/release/kumo-*-test.apk
 
-          echo "=== 3. Búsqueda exhaustiva del archivo locales_config.xml ==="
-          echo "Rutas encontradas:"
-          find . -name "locales_config.xml" -type f -exec echo "→ {}" \; -exec cat {} \;
-
-          echo "=== 4. Ruta exacta del directorio generado (según tu build logic) ==="
-          find build -path "*/android/res/xml" -type d 2>/dev/null || echo "No se encontró carpeta android/res/xml generada"
-
-          echo "=== 5. Contenido completo de generated dirs (para ver generatedAndroidResourceDir) ==="
-          find . -path "*/generated/*" -name "*.xml" | head -20 || echo "No hay archivos XML generados"
+      - name: Cleanup
+        if: always()
+        run: rm -f Kumo/app/nube.p12
