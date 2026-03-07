@@ -17,15 +17,16 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
-          apk add --no-cache nodejs git bash build-base python3 rsync xz electron
+          apk add --no-cache nodejs npm git bash build-base python3 xz electron
 
-          # Corepack para usar la versión exacta de Yarn de Joplin (Yarn Berry)
+          # ←←← ESTO ES LO QUE ARREGLA EL ERROR
+          npm install -g corepack@latest
           corepack enable
 
       - name: Clone Repository
         run: |
           git clone --depth 1 https://github.com/laurent22/joplin.git .
-          ls -la  # debug: debería mostrar packages/ y .yarn/
+          ls -la
 
       - name: Install Yarn Dependencies (monorepo)
         run: |
@@ -40,7 +41,6 @@ jobs:
 
           cd packages/app-desktop
 
-          # Ejecutamos exactamente lo mismo que "yarn dist" pero con overrides para Alpine
           npx gulp before-dist
           ELECTRON_VERSION=$SYSTEM_ELECTRON_VER yarn electronRebuild
           npx electron-builder --linux --dir \
@@ -49,12 +49,8 @@ jobs:
 
       - name: Create Final Tarball Native
         run: |
-          # El directorio que genera electron-builder --dir
           mv packages/app-desktop/dist/linux-unpacked joplin-portable
-
-          # Opcional: renombrar el ejecutable para que sea más claro
-          mv joplin-portable/joplin joplin-portable/joplin-alpine
-
+          mv joplin-portable/joplin joplin-portable/joplin-alpine  # más claro
           tar -cJf joplin-alpine-native.tar.xz joplin-portable/
 
       - name: Upload Artifact
