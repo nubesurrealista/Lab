@@ -1,0 +1,31 @@
+name: Build Librespeed CLI (Termux armv7 Edition)
+on:
+  workflow_dispatch: null
+jobs:
+  build-librespeed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm/v7
+      - name: Clone and Build Librespeed-CLI in Termux
+        run: |
+          docker run --rm --privileged \
+            -v ${{ github.workspace }}:/workspace \
+            termux/termux-docker:arm \
+            /entrypoint_root.sh bash -c '
+              cd /workspace
+              apt update
+              apt install -y git golang upx
+              git clone https://github.com/librespeed/speedtest-cli
+              cd speedtest-cli
+              chmod +x build.sh
+              ./build.sh
+              ls -R out/
+            '
+      - name: Upload Librespeed Binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: librespeed-cli-termux-armv7
+          path: speedtest-cli/out/librespeed-cli-*
