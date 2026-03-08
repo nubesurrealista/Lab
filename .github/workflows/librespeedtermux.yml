@@ -6,15 +6,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm/v7
+        run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
       - name: Clone and Build Librespeed-CLI in Termux
         run: |
-          docker run --rm --privileged \
+          docker run -it --rm --privileged \
             -v ${{ github.workspace }}:/workspace \
             termux/termux-docker:arm \
-            /entrypoint_root.sh bash -c '
+            bash -c '
               cd /workspace
               apt update
               apt install -y git golang upx
