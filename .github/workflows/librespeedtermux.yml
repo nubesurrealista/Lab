@@ -14,9 +14,9 @@ jobs:
             --entrypoint /entrypoint_root.sh \
             termux/termux-docker:arm \
             bash -c '
+              set -e
               cd /workspace
-              apt update
-              apt install -y git golang upx
+              su - system -c "apt update && apt install -y git golang upx"
               git clone https://github.com/librespeed/speedtest-cli
               cd speedtest-cli
               chmod +x build.sh
