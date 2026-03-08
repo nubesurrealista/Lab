@@ -1,21 +1,34 @@
-name: Build Librespeed CLI (armv7 Edition)
+name: Build Librespeed CLI (Termux armv7 Edition)
 on:
   workflow_dispatch: null
 jobs:
   build-librespeed:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-      - name: Clone and Build Librespeed-CLI
+      - name: Set up QEMU
+        run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
+      - name: Clone and Build Librespeed-CLI in Termux
         run: |
-          git clone https://github.com/librespeed/speedtest-cli
-          cd speedtest-cli
-          chmod +x build.sh
-          GOOS=linux GOARCH=arm GOARM=7 ./build.sh
-          ls -R out/
+          docker run --rm --privileged \
+            -v ${{ github.workspace }}:/workspace \
+            --entrypoint /entrypoint_root.sh \
+            termux/termux-docker:arm \
+            bash -c '
+              set -e
+              cd /workspace
+              su - system -c "
+                apt update &&
+                DEBIAN_FRONTEND=noninteractive apt upgrade -y \
+                  -o Dpkg::Options::=\"--force-confdef\" \
+                  -o Dpkg::Options::=\"--force-confold\" &&
+                apt install -y git golang upx
+              "
+              git clone https://github.com/librespeed/speedtest-cli
+              cd speedtest-cli
+              chmod +x build.sh
+              ./build.sh
+              ls -R out/
+            '
       - name: Upload Librespeed Binary
         uses: actions/upload-artifact@v7
         with:
