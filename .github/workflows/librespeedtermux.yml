@@ -5,30 +5,32 @@ jobs:
   build-librespeed:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU
-        run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
-      - name: Clone and Build Librespeed-CLI in Termux
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Install dependencies
         run: |
-          docker run --rm --privileged \
-            -v ${{ github.workspace }}:/workspace \
-            --entrypoint /entrypoint_root.sh \
-            termux/termux-docker:arm \
-            bash -c '
-              set -e
-              cd /workspace
-              su - system -c "
-                apt update &&
-                DEBIAN_FRONTEND=noninteractive apt upgrade -y \
-                  -o Dpkg::Options::=\"--force-confdef\" \
-                  -o Dpkg::Options::=\"--force-confold\" &&
-                apt install -y git golang upx
-              "
-              git clone https://github.com/librespeed/speedtest-cli
-              cd speedtest-cli
-              chmod +x build.sh
-              ./build.sh
-              ls -R out/
-            '
+          sudo apt update
+          sudo apt install -y upx
+      - name: Set up Android NDK for Termux armv7 build
+        run: |
+          wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip -O ndk.zip
+          unzip -q ndk.zip
+          mv android-ndk-r27c $HOME/android-ndk
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk" >> $GITHUB_ENV
+      - name: Clone and Build Librespeed-CLI
+        run: |
+          git clone https://github.com/librespeed/speedtest-cli
+          cd speedtest-cli
+          chmod +x build.sh
+          export GOOS=linux
+          export GOARCH=arm
+          export GOARM=7
+          export CGO_ENABLED=1
+          export CC=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi28-clang
+          ./build.sh
+          ls -R out/
       - name: Upload Librespeed Binary
         uses: actions/upload-artifact@v7
         with:
