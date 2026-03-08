@@ -8,16 +8,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'  # Use a known good version before toolchain changes in 1.24
+          go-version: '1.22'
       - name: Install UPX
         run: sudo apt update && sudo apt install -y upx
-      - name: Download Android NDK r25c (known compatible with older Go)
+      - name: Download Android NDK r25c
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip -O ndk.zip
           unzip -q ndk.zip
           mv android-ndk-r25c $HOME/android-ndk
           echo "ANDROID_NDK_HOME=$HOME/android-ndk" >> $GITHUB_ENV
-      - name: Clone and Build Librespeed-CLI with CGO for Termux compatibility
+      - name: Clone and Build Librespeed-CLI (bionic-linked for Termux)
         run: |
           git clone https://github.com/librespeed/speedtest-cli
           cd speedtest-cli
@@ -26,9 +26,10 @@ jobs:
           export GOARCH=arm
           export GOARM=7
           export CGO_ENABLED=1
-          export CC=${{ env.ANDROID_NDK_HOME }}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
-          export CGO_CFLAGS="--sysroot=${{ env.ANDROID_NDK_HOME }}/sysroot"
-          export CGO_LDFLAGS="--sysroot=${{ env.ANDROID_NDK_HOME }}/sysroot"
+          export CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+          export CGO_CFLAGS="--sysroot=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -target armv7a-linux-androideabi21 -isystem ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -isystem ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/arm-linux-androideabi"
+          export CGO_CPPFLAGS="$CGO_CFLAGS"
+          export CGO_LDFLAGS="--sysroot=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
           ./build.sh
           ls -R out/
       - name: Upload Librespeed Binary
