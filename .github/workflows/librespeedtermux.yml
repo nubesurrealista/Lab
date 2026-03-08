@@ -9,8 +9,9 @@ jobs:
         run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
       - name: Clone and Build Librespeed-CLI in Termux
         run: |
-          docker run -it --rm --privileged \
+          docker run --rm --privileged \
             -v ${{ github.workspace }}:/workspace \
+            --entrypoint /entrypoint_root.sh \
             termux/termux-docker:arm \
             bash -c '
               cd /workspace
