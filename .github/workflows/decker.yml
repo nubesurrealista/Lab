@@ -1,10 +1,6 @@
-name: Build Decker on Alpine musl
+name: Build Decker Native on Alpine musl
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -13,30 +9,29 @@ jobs:
     container: alpine:latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           apk update
-          apk add --no-cache build-base sdl2-dev sdl2_image-dev git make xxd
+          apk add --no-cache build-base sdl2-dev sdl2_image-dev make xxd
 
-      - name: Build lilt + decker
+      - name: Compile lilt and decker
         run: |
-          make clean
           make lilt
           make decker
 
-      - name: Test build artifacts
+      - name: Basic verification
         run: |
-          ./lilt -e 'print "Lil works"'
+          ./lilt -e 'print "Lil interpreter OK"'
           file ./decker
           ./decker --version || true
 
-      - name: Upload binary artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: decker-alpine-binary
+          name: decker-alpine-musl-binaries
           path: |
             decker
             lilt
