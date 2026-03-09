@@ -7,8 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Decker repository
         uses: actions/checkout@v6
+        with:
+          repository: JohnEarnest/Decker
 
       - name: Install build dependencies
         run: |
