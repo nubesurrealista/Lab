@@ -20,6 +20,8 @@ jobs:
             git \
             ruby-dev \
             sdl2-dev \
+            alsa-lib-dev \
+            pulseaudio-dev \
             mesa-dev \
             glu-dev \
             freeglut-dev \
