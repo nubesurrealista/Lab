@@ -8,7 +8,7 @@ jobs:
     container: clux/muslrust:stable
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: hykilpikonna/hyfetch
           path: hyfetch
