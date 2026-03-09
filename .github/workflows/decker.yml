@@ -1,0 +1,43 @@
+name: Build Decker on Alpine musl
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add --no-cache build-base sdl2-dev sdl2_image-dev git make xxd
+
+      - name: Build lilt + decker
+        run: |
+          make clean
+          make lilt
+          make decker
+
+      - name: Test build artifacts
+        run: |
+          ./lilt -e 'print "Lil works"'
+          file ./decker
+          ./decker --version || true
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: decker-alpine-binary
+          path: |
+            decker
+            lilt
+          if-no-files-found: warn
