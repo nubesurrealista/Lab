@@ -22,10 +22,9 @@ jobs:
           make lilt
           make decker
 
-      - name: Basic verification
+      - name: Quick verification
         run: |
-          ./c/build/lilt -e 'print "Lil interpreter OK"'
-          ./c/build/decker --version || true
+          ./c/build/lilt -e 'print "Lilt Build: OK"'
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@v7
