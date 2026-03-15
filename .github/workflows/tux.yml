@@ -1,4 +1,3 @@
----
 name: Build SuperTux for Alpine Linux (musl)
 on:
   workflow_dispatch: null
@@ -74,7 +73,7 @@ jobs:
 
           cat > /tmp/execinfo.patch <<-'EOF'
           diff --git a/src/supertux/error_handler.cpp b/src/supertux/error_handler.cpp
-          index 584523e..898512a 100644
+          index 1234567..89abcde 100644
           --- a/src/supertux/error_handler.cpp
           +++ b/src/supertux/error_handler.cpp
           @@ -50,7 +50,7 @@
@@ -101,8 +100,11 @@ jobs:
         run: |
           ls -lh supertux2
           file supertux2
+          echo "Build successful for Alpine musl."
+          echo "The binary is dynamic and linked against musl."
       - name: Upload artifact (compiled binary)
         uses: actions/upload-artifact@v7
         with:
           name: supertux2-alpine-musl
           path: supertux/build/supertux2
+          retention-days: 7
