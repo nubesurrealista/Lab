@@ -33,7 +33,7 @@ jobs:
             libpng-dev \
             patch
       - name: Clone SuperTux + submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: SuperTux/supertux
           submodules: recursive
@@ -42,35 +42,51 @@ jobs:
         working-directory: supertux
         run: |
           cat > /tmp/zip_manager.patch <<-'EOF'
-            diff --git a/external/partio_zip/zip_manager.hpp b/external/partio_zip/zip_manager.hpp
-            index 666884d..15683d2 100644
-            --- a/external/partio_zip/zip_manager.hpp
-            +++ b/external/partio_zip/zip_manager.hpp
-            @@ -44,6 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-             #include <fstream>
-             #include <iostream>
-             #include <map>
-            +#include <memory>
-             #include <string>
-             #include <stdexcept>
-             #include <vector>
-            EOF
+          diff --git a/external/partio_zip/zip_manager.hpp b/external/partio_zip/zip_manager.hpp
+          index 666884d..15683d2 100644
+          --- a/external/partio_zip/zip_manager.hpp
+          +++ b/external/partio_zip/zip_manager.hpp
+          @@ -44,6 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+           #include <fstream>
+           #include <iostream>
+           #include <map>
+          +#include <memory>
+           #include <string>
+           #include <stdexcept>
+           #include <vector>
+          EOF
           patch -p1 < /tmp/zip_manager.patch
 
           cat > /tmp/cfloat.patch <<-'EOF'
-            diff --git a/src/supertux/game_session.cpp b/src/supertux/game_session.cpp
-            index 41de52e..a8ebfc9 100644
-            --- a/src/supertux/game_session.cpp
-            +++ b/src/supertux/game_session.cpp
-            @@ -14,6 +14,8 @@
-             // You should have received a copy of the GNU General Public License
-             // along with this program. If not, see <http://www.gnu.org/licenses/>.
-            +#include <cfloat>
-            +
-             #include "supertux/game_session.hpp"
-             #include "audio/sound_manager.hpp"
-            EOF
+          diff --git a/src/supertux/game_session.cpp b/src/supertux/game_session.cpp
+          index 41de52e..a8ebfc9 100644
+          --- a/src/supertux/game_session.cpp
+          +++ b/src/supertux/game_session.cpp
+          @@ -14,6 +14,8 @@
+           // You should have received a copy of the GNU General Public License
+           // along with this program. If not, see <http://www.gnu.org/licenses/>.
+          +#include <cfloat>
+          +
+           #include "supertux/game_session.hpp"
+           #include "audio/sound_manager.hpp"
+          EOF
           patch -p1 < /tmp/cfloat.patch
+
+          cat > /tmp/execinfo.patch <<-'EOF'
+          diff --git a/src/supertux/error_handler.cpp b/src/supertux/error_handler.cpp
+          index 584523e..898512a 100644
+          --- a/src/supertux/error_handler.cpp
+          +++ b/src/supertux/error_handler.cpp
+          @@ -50,7 +50,7 @@
+           #include <signal.h>
+           #include <stdlib.h>
+           
+          -#if defined(__GNUC__) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
+          +#if defined(__GNUC__) && defined(__GLIBC__) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__APPLE__)
+           #include <execinfo.h>
+           #endif
+          EOF
+          patch -p1 < /tmp/execinfo.patch
       - name: Configure and build (Release)
         working-directory: supertux
         run: |
@@ -85,11 +101,8 @@ jobs:
         run: |
           ls -lh supertux2
           file supertux2
-          echo "Build successful for Alpine musl."
-          echo "The binary is dynamic and linked against musl."
       - name: Upload artifact (compiled binary)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: supertux2-alpine-musl
           path: supertux/build/supertux2
-          retention-days: 7
