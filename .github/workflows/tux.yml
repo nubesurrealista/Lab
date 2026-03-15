@@ -1,14 +1,12 @@
+---
 name: Build SuperTux for Alpine Linux (musl)
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
-
     steps:
       - name: Install build dependencies (apk)
         run: |
@@ -32,25 +30,56 @@ jobs:
             fmt-dev \
             harfbuzz-dev \
             fribidi-dev \
-            raqm-dev \
-            libpng-dev
-
+            libpng-dev \
+            patch
       - name: Clone SuperTux + submodules
         uses: actions/checkout@v4
         with:
           repository: SuperTux/supertux
           submodules: recursive
           path: supertux
+      - name: Apply patches for musl compatibility
+        working-directory: supertux
+        run: |
+          cat > /tmp/zip_manager.patch <<-'EOF'
+            diff --git a/external/partio_zip/zip_manager.hpp b/external/partio_zip/zip_manager.hpp
+            index 666884d..15683d2 100644
+            --- a/external/partio_zip/zip_manager.hpp
+            +++ b/external/partio_zip/zip_manager.hpp
+            @@ -44,6 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+             #include <fstream>
+             #include <iostream>
+             #include <map>
+            +#include <memory>
+             #include <string>
+             #include <stdexcept>
+             #include <vector>
+            EOF
+          patch -p1 < /tmp/zip_manager.patch
 
+          cat > /tmp/cfloat.patch <<-'EOF'
+            diff --git a/src/supertux/game_session.cpp b/src/supertux/game_session.cpp
+            index 41de52e..a8ebfc9 100644
+            --- a/src/supertux/game_session.cpp
+            +++ b/src/supertux/game_session.cpp
+            @@ -14,6 +14,8 @@
+             // You should have received a copy of the GNU General Public License
+             // along with this program. If not, see <http://www.gnu.org/licenses/>.
+            +#include <cfloat>
+            +
+             #include "supertux/game_session.hpp"
+             #include "audio/sound_manager.hpp"
+            EOF
+          patch -p1 < /tmp/cfloat.patch
       - name: Configure and build (Release)
         working-directory: supertux
         run: |
           mkdir -p build && cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_OPENGL=ON
+            -DENABLE_OPENGL=ON \
+            -DUSE_SYSTEM_SDL2_TTF=ON
           cmake --build . -- -j$(nproc)
-
       - name: Verify compiled binary
         working-directory: supertux/build
         run: |
@@ -58,7 +87,6 @@ jobs:
           file supertux2
           echo "Build successful for Alpine musl."
           echo "The binary is dynamic and linked against musl."
-
       - name: Upload artifact (compiled binary)
         uses: actions/upload-artifact@v4
         with:
