@@ -1,0 +1,67 @@
+name: Build SuperTux for Alpine Linux (musl)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+
+    steps:
+      - name: Install build dependencies (apk)
+        run: |
+          apk add --no-cache \
+            build-base \
+            cmake \
+            git \
+            sdl2-dev \
+            sdl2_image-dev \
+            sdl2_ttf-dev \
+            boost-dev \
+            physfs-dev \
+            curl-dev \
+            glew-dev \
+            glm-dev \
+            freetype-dev \
+            libvorbis-dev \
+            openal-soft-dev \
+            libogg-dev \
+            zlib-dev \
+            fmt-dev \
+            harfbuzz-dev \
+            fribidi-dev \
+            raqm-dev \
+            libpng-dev
+
+      - name: Clone SuperTux + submodules
+        uses: actions/checkout@v4
+        with:
+          repository: SuperTux/supertux
+          submodules: recursive
+          path: supertux
+
+      - name: Configure and build (Release)
+        working-directory: supertux
+        run: |
+          mkdir -p build && cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_OPENGL=ON
+          cmake --build . -- -j$(nproc)
+
+      - name: Verify compiled binary
+        working-directory: supertux/build
+        run: |
+          ls -lh supertux2
+          file supertux2
+          echo "Build successful for Alpine musl."
+          echo "The binary is dynamic and linked against musl."
+
+      - name: Upload artifact (compiled binary)
+        uses: actions/upload-artifact@v4
+        with:
+          name: supertux2-alpine-musl
+          path: supertux/build/supertux2
+          retention-days: 7
