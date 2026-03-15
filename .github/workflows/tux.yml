@@ -1,3 +1,4 @@
+---
 name: Build SuperTux for Alpine Linux (musl)
 on:
   workflow_dispatch: null
@@ -42,10 +43,9 @@ jobs:
         run: |
           cat > /tmp/zip_manager.patch <<-'EOF'
           diff --git a/external/partio_zip/zip_manager.hpp b/external/partio_zip/zip_manager.hpp
-          index 666884d..15683d2 100644
           --- a/external/partio_zip/zip_manager.hpp
           +++ b/external/partio_zip/zip_manager.hpp
-          @@ -44,6 +44,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+          @@ -44,6 +44,7 @@
            #include <fstream>
            #include <iostream>
            #include <map>
@@ -58,7 +58,6 @@ jobs:
 
           cat > /tmp/cfloat.patch <<-'EOF'
           diff --git a/src/supertux/game_session.cpp b/src/supertux/game_session.cpp
-          index 41de52e..a8ebfc9 100644
           --- a/src/supertux/game_session.cpp
           +++ b/src/supertux/game_session.cpp
           @@ -14,6 +14,8 @@
@@ -73,7 +72,6 @@ jobs:
 
           cat > /tmp/execinfo.patch <<-'EOF'
           diff --git a/src/supertux/error_handler.cpp b/src/supertux/error_handler.cpp
-          index 1234567..89abcde 100644
           --- a/src/supertux/error_handler.cpp
           +++ b/src/supertux/error_handler.cpp
           @@ -50,7 +50,7 @@
@@ -101,10 +99,8 @@ jobs:
           ls -lh supertux2
           file supertux2
           echo "Build successful for Alpine musl."
-          echo "The binary is dynamic and linked against musl."
       - name: Upload artifact (compiled binary)
         uses: actions/upload-artifact@v7
         with:
           name: supertux2-alpine-musl
           path: supertux/build/supertux2
-          retention-days: 7
