@@ -23,10 +23,13 @@ jobs:
 
       - name: Build
         shell: sh
+        env:
+          CC: x86_64-linux-musl-gcc
+          CXX: x86_64-linux-musl-g++
+          DRS_BUILD_VERSION_OVERRIDE: "0.102.0-musl"
         run: |
           cd doukutsu-rs
-          export DRS_BUILD_VERSION_OVERRIDE="0.102.0-musl"
-          cargo build --release --locked --bin doukutsu-rs
+          cargo build --release --locked --bin doukutsu-rs --target x86_64-unknown-linux-musl
           strip target/x86_64-unknown-linux-musl/release/doukutsu-rs
 
       - name: Upload artifact
