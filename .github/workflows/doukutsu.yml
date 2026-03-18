@@ -1,0 +1,36 @@
+name: Build doukutsu-rs with muslrust
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: clux/muslrust:stable
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          repository: doukutsu-rs/doukutsu-rs
+          path: doukutsu-rs
+
+      - name: Install dependencies
+        shell: sh
+        run: |
+          apt-get update
+          apt-get install -y libasound2-dev libudev-dev libgl1-mesa-dev \
+            libxext-dev libwayland-dev libxkbcommon-dev libdecor-0-dev
+
+      - name: Build
+        shell: sh
+        run: |
+          cd doukutsu-rs
+          export DRS_BUILD_VERSION_OVERRIDE="0.102.0-musl"
+          cargo build --release --locked --bin doukutsu-rs
+          strip target/x86_64-unknown-linux-musl/release/doukutsu-rs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: doukutsu-rs-static
+          path: doukutsu-rs/target/x86_64-unknown-linux-musl/release/doukutsu-rs
