@@ -1,4 +1,4 @@
-name: Build Termusic (Alpine-style) with muslrust
+name: Build Termusic
 on:
   workflow_dispatch:
 
@@ -14,7 +14,7 @@ jobs:
           path: termusic
           ref: v0.12.0
 
-      - name: Install Alpine-based dependencies
+      - name: Install build dependencies
         shell: sh
         run: |
           apt-get update
@@ -24,10 +24,7 @@ jobs:
         shell: sh
         run: |
           cd termusic
-          # Basado exactamente en la sección build() del APKBUILD
-          cargo build --release --no-default-features --features cover,mpv --frozen --all
-          
-          # Limpieza de binarios para reducir tamaño
+          cargo build --release --no-default-features --features cover,mpv --all
           strip target/x86_64-unknown-linux-musl/release/termusic
           strip target/x86_64-unknown-linux-musl/release/termusic-server
 
