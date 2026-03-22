@@ -5,7 +5,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: clux/muslrust:stable
+    container: alpine:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -14,24 +14,24 @@ jobs:
           path: termusic
           ref: v0.12.0
 
-      - name: Install build dependencies
+      - name: Install dependencies
         shell: sh
         run: |
-          apt-get update
-          apt-get install -y protobuf-compiler libmpv-dev libdbus-1-dev
+          apk update
+          apk add build-base rust cargo git protoc mpv-dev dbus-dev openssl-dev
 
       - name: Build
         shell: sh
         run: |
           cd termusic
           cargo build --release --no-default-features --features cover,mpv --all
-          strip target/x86_64-unknown-linux-musl/release/termusic
-          strip target/x86_64-unknown-linux-musl/release/termusic-server
+          strip target/release/termusic
+          strip target/release/termusic-server
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: termusic-mpv-static
+          name: termusic-mpv-alpine
           path: |
-            termusic/target/x86_64-unknown-linux-musl/release/termusic
-            termusic/target/x86_64-unknown-linux-musl/release/termusic-server
+            termusic/target/release/termusic
+            termusic/target/release/termusic-server
