@@ -9,9 +9,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          apk add git go make build-base \
-                  libx11-dev libxtst-dev libpng-dev \
-                  libxkbcommon-dev xsel xclip libxcb-dev
+          apk add git go make build-base libx11-dev
       - name: Clone and Build Clipse
         run: |
           git clone https://github.com/savedra1/clipse
