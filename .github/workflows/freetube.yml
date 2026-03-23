@@ -1,5 +1,4 @@
-name: Build FreeTube Alpine Portable
-
+name: Build FreeTube Alpine
 on:
   workflow_dispatch:
 
@@ -9,7 +8,6 @@ jobs:
     container:
       image: alpine:latest
       options: --user root
-
     steps:
       - name: Setup Repositories and Install
         run: |
@@ -17,51 +15,38 @@ jobs:
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
           echo "https://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
           apk update
-          apk add --no-cache nodejs npm yarn git bash electron simdutf llhttp \
-            hdrhistogram-c crc32c minizip libxshmfence curl 7zip tree
+          apk add --no-cache nodejs npm yarn git bash electron curl 7zip tree
 
-      - name: Clone FreeTube (Latest Tag)
+      - name: Clone FreeTube
         run: |
           LATEST_TAG=$(curl -s https://api.github.com/repos/FreeTubeApp/FreeTube/tags | grep -m 1 name | cut -d '"' -f 4)
           git clone --branch ${LATEST_TAG} --depth 1 https://github.com/FreeTubeApp/FreeTube.git .
-          # Inspección visual para depurar en los logs
-          tree -L 2
 
-      - name: Modify Build Script (Advanced Search)
+      - name: Prepare and Install Dependencies
         run: |
-          # Buscamos el archivo ignorando si es .js o .mjs y lo editamos
-          BUILD_PATH=$(find . -path "*/scripts/build.*" -o -path "*/_scripts/build.*" | head -n 1)
-          
-          if [ -z "$BUILD_PATH" ]; then
-            echo "ERROR: No se encontró el script de build"
-            exit 1
-          fi
-          
-          echo "Modificando: $BUILD_PATH"
-          sed -i "s/Platform.LINUX.createTarget(.*)/Platform.LINUX.createTarget(['dir'], arch)/" "$BUILD_PATH"
+          yarn install --frozen-lockfile
 
-      - name: Install Dependencies
+      - name: Build ASAR
         run: |
-          yarn install
-
-      - name: Build Package
-        run: |
-          export ELECTRON_PATH="/usr/lib/electron"
-          export SYSTEM_ELECTRON_VER=$(electron -v --no-sandbox | sed 's/v//')
           export ELECTRON_SKIP_BINARY_DOWNLOAD=1
-          export ELECTRON_OVERRIDE_DIST_PATH=$ELECTRON_PATH
-          
           yarn run build
           
-          # Localizamos la carpeta unpacked dinámicamente
-          UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
+      - name: Create Portable Structure
+        run: |
+          mkdir -p dist/freetube-portable/resources
           
-          cp /usr/lib/libsimdutf.so* "$UNPACKED_DIR/"
-          cp /usr/lib/libllhttp.so* "$UNPACKED_DIR/"
-          cp /usr/lib/libhdr_histogram.so* "$UNPACKED_DIR/"
-          cp /usr/lib/libcrc32c.so* "$UNPACKED_DIR/"
-          cp /usr/lib/libminizip.so* "$UNPACKED_DIR/"
-          cp /usr/lib/libxshmfence.so* "$UNPACKED_DIR/"
+          ASAR_PATH=$(find build -name "app.asar" | head -n 1)
+          cp "$ASAR_PATH" dist/freetube-portable/resources/
+          
+          cp /usr/bin/electron dist/freetube-portable/freetube
+          chmod +x dist/freetube-portable/freetube
+          
+          cat <<EOF > dist/freetube-portable/freetube.sh
+          #!/bin/sh
+          HERE=\$(dirname "\$(readlink -f "\$0")")
+          exec "\$HERE/freetube" "\$HERE/resources/app.asar" "\$@"
+          EOF
+          chmod +x dist/freetube-portable/freetube.sh
 
       - name: Fix Locales (Spanish Only)
         run: |
@@ -72,14 +57,12 @@ jobs:
           curl -L -o release.zip "$URL"
           7z x release.zip locales/es.pak locales/es-419.pak -o./temp_locales
           
-          UNPACKED_DIR=$(find . -name "linux-unpacked" -type d | head -n 1)
-          mkdir -p "$UNPACKED_DIR/locales"
-          rm -f "$UNPACKED_DIR/locales"/*.pak
-          mv temp_locales/locales/*.pak "$UNPACKED_DIR/locales/"
+          mkdir -p dist/freetube-portable/locales
+          mv temp_locales/locales/*.pak dist/freetube-portable/locales/
           rm -rf temp_locales release.zip
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FreeTube-Portable-ES-Musl
-          path: "**/linux-unpacked/**"
+          name: FreeTube-Alpine-Portable
+          path: dist/freetube-portable/
