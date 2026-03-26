@@ -1,0 +1,67 @@
+name: Build xed
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk update
+          apk add git build-base cmake meson ninja pkgconfig \
+                  intltool itstool libpeas-dev gobject-introspection-dev \
+                  gspell-dev gtksourceview4-dev gzip python3 \
+                  py3-gobject3-dev xapp-dev gettext-dev
+
+      - name: Clone xed
+        run: |
+          git clone --depth 1 --branch 3.8.9 https://github.com/linuxmint/xed.git
+
+      - name: Prepare and build
+        run: |
+          cd xed
+          meson setup output \
+            --prefix=/usr \
+            --buildtype=release \
+            -Db_lto=true
+          meson compile -C output
+
+      - name: Install to staging
+        run: |
+          cd xed
+          DESTDIR=$PWD/../install-staging meson install -C output
+
+      - name: Package binary + Spanish locale
+        run: |
+          mkdir -p package/usr/bin
+          mkdir -p package/usr/lib/xed
+          mkdir -p package/usr/share/xed
+          mkdir -p package/usr/share/locale/es/LC_MESSAGES
+          mkdir -p package/usr/share/applications
+          
+          cp install-staging/usr/bin/xed package/usr/bin/
+          
+          if [ -d install-staging/usr/lib/xed ]; then
+            cp -r install-staging/usr/lib/xed/* package/usr/lib/xed/
+          fi
+          
+          if [ -d install-staging/usr/share/xed ]; then
+            cp -r install-staging/usr/share/xed/* package/usr/share/xed/
+          fi
+
+          if [ -f install-staging/usr/share/locale/es/LC_MESSAGES/xed.mo ]; then
+            cp install-staging/usr/share/locale/es/LC_MESSAGES/xed.mo \
+               package/usr/share/locale/es/LC_MESSAGES/
+          fi
+
+          cp install-staging/usr/share/applications/xed.desktop package/usr/share/applications/
+          
+          tar -czf xed-alpine-es.tar.gz -C package .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: xed-alpine-musl
+          path: xed-alpine-es.tar.gz
