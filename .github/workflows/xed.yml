@@ -22,10 +22,15 @@ jobs:
       - name: Prepare and build
         run: |
           cd xed
+          # El truco está en definir CFLAGS para evitar los conflictos de inclusión
+          export CFLAGS="$CFLAGS -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include"
+          
           meson setup output \
             --prefix=/usr \
             --buildtype=release \
-            -Db_lto=true
+            -Db_lto=true \
+            -Dintrospection=false
+          
           meson compile -C output
 
       - name: Install to staging
@@ -43,14 +48,9 @@ jobs:
           
           cp install-staging/usr/bin/xed package/usr/bin/
           
-          if [ -d install-staging/usr/lib/xed ]; then
-            cp -r install-staging/usr/lib/xed/* package/usr/lib/xed/
-          fi
+          [ -d install-staging/usr/lib/xed ] && cp -r install-staging/usr/lib/xed/* package/usr/lib/xed/
+          [ -d install-staging/usr/share/xed ] && cp -r install-staging/usr/share/xed/* package/usr/share/xed/
           
-          if [ -d install-staging/usr/share/xed ]; then
-            cp -r install-staging/usr/share/xed/* package/usr/share/xed/
-          fi
-
           if [ -f install-staging/usr/share/locale/es/LC_MESSAGES/xed.mo ]; then
             cp install-staging/usr/share/locale/es/LC_MESSAGES/xed.mo \
                package/usr/share/locale/es/LC_MESSAGES/
