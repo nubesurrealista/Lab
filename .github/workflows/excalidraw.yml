@@ -8,22 +8,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Clone Excalidraw Repository
         uses: actions/checkout@v6
         with:
+          repository: excalidraw/excalidraw
+          path: excalidraw-source
           fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          cd excalidraw-source
+          npm install
 
       - name: Build Application
-        run: npm run build
+        run: |
+          cd excalidraw-source/excalidraw-app
+          npm run build
         env:
           VITE_APP_DISABLE_SENTRY: true
           VITE_APP_ENABLE_TRACKING: false
@@ -32,4 +37,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: excalidraw-build
-          path: excalidraw-app/build/
+          path: excalidraw-source/excalidraw-app/build/
