@@ -67,7 +67,8 @@ jobs:
           patch -N -p1 < gcc12.patch || true
           patch -N -p1 < missing-include-for-FLT_EPSILON.patch || true
 
-          sed -i '/#include <execinfo.h>/d' src/supertux/error_handler.cpp
+          sed -i 's/#include <execinfo.h>/#ifdef __GLIBC__\n#include <execinfo.h>\n#endif/' src/supertux/error_handler.cpp
+          sed -i 's/elif defined(UNIX)/elif defined(UNIX) \&\& defined(__GLIBC__)/' src/supertux/error_handler.cpp
       - name: Configure and Build
         shell: sh
         run: |
