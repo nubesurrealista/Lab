@@ -13,7 +13,7 @@ jobs:
       - name: Install dependencies
         run: |
           apk update
-          apk add build-base cmake git
+          apk add build-base cmake git linux-headers
 
       - name: Checkout
         uses: actions/checkout@v6
@@ -24,7 +24,7 @@ jobs:
         run: cmake -B build -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release -j $(nproc)
+        run: cmake --build build --config Release
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
