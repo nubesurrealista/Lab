@@ -11,7 +11,7 @@ jobs:
         shell: sh
         run: |
           apk update
-          apk add git patch
+          apk add git patch sed
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -34,7 +34,7 @@ jobs:
             openal-soft-dev physfs-dev sdl2-dev \
             sdl2_image-dev sdl2_ttf-dev boost-dev \
             fmt-dev libraqm-dev harfbuzz-dev fribidi-dev
-      - name: Apply patches
+      - name: Apply patches and source fixes
         shell: sh
         run: |
           cat << 'EOF' > gcc12.patch
@@ -66,6 +66,8 @@ jobs:
 
           patch -N -p1 < gcc12.patch || true
           patch -N -p1 < missing-include-for-FLT_EPSILON.patch || true
+
+          sed -i '/#include <execinfo.h>/d' src/supertux/error_handler.cpp
       - name: Configure and Build
         shell: sh
         run: |
