@@ -1,0 +1,33 @@
+name: Build llama.cpp
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add build-base cmake git
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/llama.cpp
+
+      - name: Configure
+        run: cmake -B build -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j $(nproc)
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-cli-alpine
+          path: build/bin/llama-cli
