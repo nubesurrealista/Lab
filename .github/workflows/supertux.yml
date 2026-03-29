@@ -20,6 +20,7 @@ jobs:
       - name: Checkout latest tag and submodules
         shell: sh
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           LATEST_TAG=$(git describe --tags --abbrev=0)
           git checkout $LATEST_TAG
           git submodule update --init --recursive
