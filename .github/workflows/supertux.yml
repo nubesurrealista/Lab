@@ -28,7 +28,12 @@ jobs:
         shell: sh
         run: |
           apk update
-          apk add build-base cmake samurai curl-dev freetype-dev glew-dev glm-dev libpng-dev libvorbis-dev libogg-dev openal-soft-dev physfs-dev sdl2-dev sdl2_image-dev sdl2_ttf-dev boost-dev
+          apk add build-base cmake samurai pkgconf \
+            curl-dev freetype-dev glew-dev glm-dev \
+            libpng-dev libvorbis-dev libogg-dev \
+            openal-soft-dev physfs-dev sdl2-dev \
+            sdl2_image-dev sdl2_ttf-dev boost-dev \
+            fmt-dev libraqm-dev harfbuzz-dev fribidi-dev
       - name: Apply patches
         shell: sh
         run: |
