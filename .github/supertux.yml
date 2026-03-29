@@ -1,0 +1,76 @@
+---
+name: Build SuperTux
+on:
+  workflow_dispatch: null
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Install Git and Patch
+        shell: sh
+        run: |
+          apk update
+          apk add git patch
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          repository: SuperTux/supertux
+          fetch-depth: 0
+      - name: Checkout latest tag and submodules
+        shell: sh
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+          git checkout $LATEST_TAG
+          git submodule update --init --recursive
+      - name: Install dependencies
+        shell: sh
+        run: |
+          apk update
+          apk add build-base cmake samurai curl-dev freetype-dev glew-dev glm-dev libpng-dev libvorbis-dev libogg-dev openal-soft-dev physfs-dev sdl2-dev sdl2_image-dev sdl2_ttf-dev boost-dev
+      - name: Apply patches
+        shell: sh
+        run: |
+          cat << 'EOF' > gcc12.patch
+          --- a/external/partio_zip/zip_manager.hpp
+          +++ b/external/partio_zip/zip_manager.hpp
+          @@ -44,6 +44,7 @@
+           #include <fstream>
+           #include <iostream>
+           #include <map>
+          +#include <memory>
+           #include <string>
+           #include <stdexcept>
+           #include <vector>
+          EOF
+
+          cat << 'EOF' > missing-include-for-FLT_EPSILON.patch
+          --- a/src/supertux/game_session.cpp
+          +++ b/src/supertux/game_session.cpp
+          @@ -14,6 +14,8 @@
+           //  You should have received a copy of the GNU General Public License
+           //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+           
+          +#include <cfloat>
+          +
+           #include "supertux/game_session.hpp"
+           
+           #include "audio/sound_manager.hpp"
+          EOF
+
+          patch -N -p1 < gcc12.patch || true
+          patch -N -p1 < missing-include-for-FLT_EPSILON.patch || true
+      - name: Configure and Build
+        shell: sh
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build
+      - name: Install to staging directory
+        shell: sh
+        run: |
+          DESTDIR="staging" cmake --install build
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: supertux-alpine-latest
+          path: staging/
