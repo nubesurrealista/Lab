@@ -1,5 +1,5 @@
 ---
-name: Build Mesa Amber Alpine (Optimized)
+name: Build Mesa Amber Alpine (Final)
 on:
   workflow_dispatch: null
 jobs:
@@ -62,5 +62,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: mesa-amber-e8400-optimized
+          name: mesa-amber-e8400-final
           path: mesa-amber-binaries.tar.gz
