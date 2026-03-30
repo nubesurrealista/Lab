@@ -1,5 +1,4 @@
----
-name: Build Mesa Amber Alpine
+name: Build Mesa Amber
 on:
   workflow_dispatch: null
 jobs:
@@ -15,27 +14,18 @@ jobs:
             build-base meson ninja patch python3 py3-mako py3-packaging \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
-            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev
+            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev \
+            llvm15-dev llvm15-static
       - name: Download and Patch
-        run: >
-          curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz
-          -o mesa.tar.xz
-
+        run: |
+          curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
           tar -xf mesa.tar.xz
-
           mv mesa-21.3.9 mesa-src
-
           curl -L "https://gitlab.archlinux.org/archlinux/packaging/packages/mesa-amber/-/raw/main/mesa-amber-21.3.9-meson-Support-for-both-packaging-and-distutils.patch" -o fix.patch
-
           patch -Np1 -d mesa-src -i ../fix.patch
       - name: Configure
         run: |
           cd mesa-src
-          # DEFINICIÓN DE FLAGS BLINDADAS:
-          # 1. -march=core2: La arquitectura base que GCC acepta para tu E8400.
-          # 2. -msse4.1: Activamos manualmente las instrucciones multimedia que tu Wolfdale sí tiene.
-          # 3. -ftls-model=global-dynamic: LA CLAVE. Evita el crash "initial-exec" en Electron.
-          # 4. -mtls-dialect=gnu: El dialecto que prefiere Alpine para evitar errores de linkeo.
           export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
           export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
           
@@ -46,20 +36,22 @@ jobs:
             -D b_lto=false \
             -D b_staticpic=true \
             -D amber=true \
-            -D dri-drivers=i915,i965 \
-            -D dri3=enabled \
+            -D dri-drivers=[] \
+            -D gallium-drivers=i915,swrast \
+            -D dri3=disabled \
             -D egl=enabled \
-            -D gallium-drivers=swrast \
             -D gbm=enabled \
             -D gles1=disabled \
             -D gles2=enabled \
             -D glvnd=false \
             -D glx=dri \
             -D glx-direct=true \
-            -D llvm=disabled \
+            -D llvm=enabled \
+            -D shared-llvm=enabled \
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
+            -D texture-float=enabled \
             -D c_args="$CFLAGS" \
             -D cpp_args="$CXXFLAGS"
       - name: Compile and Package
@@ -70,7 +62,7 @@ jobs:
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
       - name: Upload Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
