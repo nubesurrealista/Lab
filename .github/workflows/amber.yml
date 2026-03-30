@@ -19,20 +19,16 @@ jobs:
       - name: Fetch and Extract Legacy LLVM 12
         run: |
           MIRROR="https://dl-cdn.alpinelinux.org/alpine/v3.16/community/x86_64"
-
           mkdir -p /opt/llvm12
-
           curl -L "$MIRROR/llvm12-12.0.1-r3.apk" -o llvm.apk
           curl -L "$MIRROR/llvm12-libs-12.0.1-r3.apk" -o llvm-libs.apk
           curl -L "$MIRROR/llvm12-dev-12.0.1-r3.apk" -o llvm-dev.apk
           curl -L "$MIRROR/llvm12-static-12.0.1-r3.apk" -o llvm-static.apk
-
           tar -xf llvm.apk -C /opt/llvm12
           tar -xf llvm-libs.apk -C /opt/llvm12
           tar -xf llvm-dev.apk -C /opt/llvm12
           tar -xf llvm-static.apk -C /opt/llvm12
-
-          LD_LIBRARY_PATH=/opt/llvm12/usr/lib/llvm12/lib /opt/llvm12/usr/lib/llvm12/bin/llvm-config --version
+          /opt/llvm12/usr/lib/llvm12/bin/llvm-config --version
       - name: Download and Patch Mesa
         run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
@@ -43,10 +39,6 @@ jobs:
       - name: Configure
         run: |
           cd mesa-src
-
-          export PATH="/opt/llvm12/usr/lib/llvm12/bin:$PATH"
-          export LLVM_CONFIG="/opt/llvm12/usr/lib/llvm12/bin/llvm-config"
-
           export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
           export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
           export LDFLAGS="-L/opt/llvm12/usr/lib/llvm12/lib"
@@ -70,6 +62,7 @@ jobs:
             -D glx-direct=true \
             -D llvm=enabled \
             -D shared-llvm=disabled \
+            -D llvm-config="/opt/llvm12/usr/lib/llvm12/bin/llvm-config" \
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
