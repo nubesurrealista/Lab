@@ -24,6 +24,9 @@ jobs:
           mv mesa-21.3.9 mesa-src
           curl -L "https://gitlab.archlinux.org/archlinux/packaging/packages/mesa-amber/-/raw/main/mesa-amber-21.3.9-meson-Support-for-both-packaging-and-distutils.patch" -o fix.patch
           patch -Np1 -d mesa-src -i ../fix.patch
+
+          sed -i '/llvm-c\/Transforms\/Coroutines.h/d' mesa-src/src/gallium/auxiliary/gallivm/lp_bld_init.c
+          sed -i '/LLVMAddCoro/d' mesa-src/src/gallium/auxiliary/gallivm/lp_bld_init.c
       - name: Configure
         run: |
           cd mesa-src
@@ -62,7 +65,7 @@ jobs:
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
