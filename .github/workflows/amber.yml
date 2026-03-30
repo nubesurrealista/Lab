@@ -1,3 +1,4 @@
+---
 name: Build Mesa Amber
 on:
   workflow_dispatch: null
@@ -6,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
-      options: --user root
+      options: '--user root'
     steps:
       - name: Install dependencies
         run: |
@@ -28,7 +29,7 @@ jobs:
           cd mesa-src
           export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
           export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
-          
+
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
@@ -51,7 +52,6 @@ jobs:
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
-            -D texture-float=enabled \
             -D c_args="$CFLAGS" \
             -D cpp_args="$CXXFLAGS"
       - name: Compile and Package
