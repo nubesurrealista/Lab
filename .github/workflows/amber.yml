@@ -36,7 +36,6 @@ jobs:
             -D b_lto=true \
             -D b_staticpic=true \
             -D amber=true \
-            -D dri-drivers=i915 \
             -D dri3=disabled \
             -D egl=enabled \
             -D gallium-drivers=i915,swrast \
