@@ -1,37 +1,34 @@
-name: Build Mesa Amber
+---
+name: Build Mesa Amber Alpine
 on:
   workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: alpine:3.16
+      image: alpine:latest
       options: '--user root'
     steps:
       - name: Install dependencies
         run: |
           apk add --no-cache \
-            build-base meson ninja patch python3 py3-mako \
+            build-base meson ninja patch python3 py3-mako py3-packaging \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
-            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev libxml2-dev \
-            llvm12-dev llvm12-static llvm12-libs
-
-      - name: Download and Patch Mesa
+            bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev
+      - name: Download and Patch
         run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
           tar -xf mesa.tar.xz
           mv mesa-21.3.9 mesa-src
           curl -L "https://gitlab.archlinux.org/archlinux/packaging/packages/mesa-amber/-/raw/main/mesa-amber-21.3.9-meson-Support-for-both-packaging-and-distutils.patch" -o fix.patch
           patch -Np1 -d mesa-src -i ../fix.patch
-
       - name: Configure
         run: |
           cd mesa-src
-          
-          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
-          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
-          
+          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+
           meson setup build \
             --prefix=/usr \
             --buildtype=release \
@@ -39,24 +36,22 @@ jobs:
             -D b_lto=false \
             -D b_staticpic=true \
             -D amber=true \
-            -D dri-drivers=[] \
-            -D gallium-drivers=i915,swrast \
+            -D dri-drivers=i915 \
             -D dri3=disabled \
             -D egl=enabled \
+            -D gallium-drivers=swrast \
             -D gbm=enabled \
             -D gles1=disabled \
             -D gles2=enabled \
             -D glvnd=false \
             -D glx=dri \
             -D glx-direct=true \
-            -D llvm=enabled \
-            -D shared-llvm=disabled \
+            -D llvm=disabled \
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
             -D c_args="$CFLAGS" \
             -D cpp_args="$CXXFLAGS"
-
       - name: Compile and Package
         run: |
           cd mesa-src
@@ -64,9 +59,8 @@ jobs:
           mkdir -p ../output
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
-
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: mesa-amber-e8400-portable
+          name: mesa-amber-e8400
           path: mesa-amber-binaries.tar.gz
