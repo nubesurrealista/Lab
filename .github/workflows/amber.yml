@@ -6,18 +6,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: alpine:latest
+      image: alpine:3.15
       options: '--user root'
     steps:
-      - name: Setup Legacy Repositories
-        run: |
-          echo "https://dl-cdn.alpinelinux.org/alpine/v3.15/main" >> /etc/apk/repositories
-          echo "https://dl-cdn.alpinelinux.org/alpine/v3.15/community" >> /etc/apk/repositories
-          apk update
       - name: Install dependencies
         run: |
           apk add --no-cache \
-            build-base meson ninja patch python3 py3-mako py3-packaging \
+            build-base meson ninja patch python3 py3-mako \
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
             bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev \
@@ -69,5 +64,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mesa-amber-e8400-portable
+          name: mesa-amber-e8400-final
           path: mesa-amber-binaries.tar.gz
