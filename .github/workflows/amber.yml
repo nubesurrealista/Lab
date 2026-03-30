@@ -9,6 +9,11 @@ jobs:
       image: alpine:latest
       options: '--user root'
     steps:
+      - name: Setup Legacy Repositories
+        run: |
+          echo "https://dl-cdn.alpinelinux.org/alpine/v3.15/main" >> /etc/apk/repositories
+          echo "https://dl-cdn.alpinelinux.org/alpine/v3.15/community" >> /etc/apk/repositories
+          apk update
       - name: Install dependencies
         run: |
           apk add --no-cache \
@@ -16,7 +21,7 @@ jobs:
             pkgconf libdrm-dev libx11-dev libxdamage-dev libxshmfence-dev \
             libxxf86vm-dev libxrandr-dev zstd-dev elfutils-dev expat-dev \
             bison flex curl tar xz mesa-dev libxfixes-dev libxcb-dev \
-            llvm15-dev llvm15-static
+            llvm12-dev llvm12-static llvm12-libs
       - name: Download and Patch
         run: |
           curl -L https://archive.mesa3d.org/older-versions/21.x/mesa-21.3.9.tar.xz -o mesa.tar.xz
@@ -24,14 +29,11 @@ jobs:
           mv mesa-21.3.9 mesa-src
           curl -L "https://gitlab.archlinux.org/archlinux/packaging/packages/mesa-amber/-/raw/main/mesa-amber-21.3.9-meson-Support-for-both-packaging-and-distutils.patch" -o fix.patch
           patch -Np1 -d mesa-src -i ../fix.patch
-
-          sed -i '/llvm-c\/Transforms\/Coroutines.h/d' mesa-src/src/gallium/auxiliary/gallivm/lp_bld_init.c
-          sed -i '/LLVMAddCoro/d' mesa-src/src/gallium/auxiliary/gallivm/lp_bld_init.c
       - name: Configure
         run: |
           cd mesa-src
-          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu -Wno-error=deprecated-declarations"
-          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu -Wno-error=deprecated-declarations"
+          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
+          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE"
 
           meson setup build \
             --prefix=/usr \
@@ -51,7 +53,7 @@ jobs:
             -D glx=dri \
             -D glx-direct=true \
             -D llvm=enabled \
-            -D shared-llvm=enabled \
+            -D shared-llvm=disabled \
             -D platforms=x11 \
             -D shared-glapi=enabled \
             -D vulkan-drivers=[] \
@@ -65,7 +67,7 @@ jobs:
           DESTDIR=$(pwd)/../output meson install -C build
           cd ../output && tar -czf ../mesa-amber-binaries.tar.gz .
       - name: Upload Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: mesa-amber-e8400
+          name: mesa-amber-e8400-portable
           path: mesa-amber-binaries.tar.gz
