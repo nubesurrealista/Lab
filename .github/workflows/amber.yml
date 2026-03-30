@@ -27,8 +27,8 @@ jobs:
       - name: Configure
         run: |
           cd mesa-src
-          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
-          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu"
+          export CFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu -Wno-error=deprecated-declarations"
+          export CXXFLAGS="-march=core2 -mtune=core2 -msse4.1 -O2 -D_GNU_SOURCE -ftls-model=global-dynamic -mtls-dialect=gnu -Wno-error=deprecated-declarations"
 
           meson setup build \
             --prefix=/usr \
