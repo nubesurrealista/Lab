@@ -39,7 +39,7 @@ jobs:
             -D dri-drivers=i915 \
             -D dri3=disabled \
             -D egl=enabled \
-            -D gallium-drivers=i915g,swrast \
+            -D gallium-drivers=i915,swrast \
             -D gbm=enabled \
             -D gles1=disabled \
             -D gles2=enabled \
