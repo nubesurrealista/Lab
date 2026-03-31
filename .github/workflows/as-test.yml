@@ -1,15 +1,13 @@
-name: Build as-cmd Aport
-
+---
+name: Build audio-share Aport
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
-      options: --privileged
-
+      options: '--privileged'
     steps:
       - name: Install build system dependencies
         run: |
@@ -26,7 +24,6 @@ jobs:
             spdlog-dev \
             cxxopts-dev \
             asio-dev
-
       - name: Setup builder user
         run: |
           adduser -D -G abuild builder
@@ -34,82 +31,53 @@ jobs:
           mkdir -p /var/cache/distfiles
           chmod a+w /var/cache/distfiles
           chown builder:abuild /var/cache/distfiles
-
       - name: Prepare Aport directory
         run: |
-          mkdir -p /home/builder/aports/testing/as-cmd
+          mkdir -p /home/builder/aports/testing/audio-share
           chown -R builder:abuild /home/builder/aports
-
       - name: Create Compatibility Patch
         run: |
-          cat << 'EOF' > /home/builder/aports/testing/as-cmd/fix-cmake.patch
---- a/server-core/CMakeLists.txt
-+++ b/server-core/CMakeLists.txt
-@@ -1,5 +1,8 @@
- cmake_minimum_required(VERSION 3.15)
- project(audio-share-server-core)
-+
-+set(protobuf_MODULE_COMPATIBLE TRUE)
-+set(Protobuf_PROTOC_EXECUTABLE /usr/bin/protoc)
- 
- find_package(Threads REQUIRED)
- find_package(pipewire REQUIRED)
-@@ -7,7 +10,13 @@
- find_package(spdlog CONFIG REQUIRED)
- find_package(cxxopts CONFIG REQUIRED)
--find_package(asio CONFIG REQUIRED)
-+
-+find_path(ASIO_INCLUDE_DIR NAMES asio.hpp)
-+if(ASIO_INCLUDE_DIR)
-+  add_library(asio::asio INTERFACE IMPORTED)
-+  target_include_directories(asio::asio INTERFACE ${ASIO_INCLUDE_DIR})
-+else()
-+  message(FATAL_ERROR "asio.hpp not found")
-+endif()
-EOF
-
+          cat << 'EOF' > /home/builder/aports/testing/audio-share/fix-cmake.patch
+          --- a/server-core/CMakeLists.txt
+          +++ b/server-core/CMakeLists.txt
+          @@ -1,5 +1,8 @@
+           cmake_minimum_required(VERSION 3.15)
+           project(audio-share-server-core)
+          +
+          +set(protobuf_MODULE_COMPATIBLE TRUE)
+          +set(Protobuf_PROTOC_EXECUTABLE /usr/bin/protoc)
+           
+           find_package(Threads REQUIRED)
+           find_package(pipewire REQUIRED)
+          @@ -7,7 +10,13 @@
+           find_package(spdlog CONFIG REQUIRED)
+           find_package(cxxopts CONFIG REQUIRED)
+          -find_package(asio CONFIG REQUIRED)
+          +
+          +find_path(ASIO_INCLUDE_DIR NAMES asio.hpp)
+          +if(ASIO_INCLUDE_DIR)
+          +  add_library(asio::asio INTERFACE IMPORTED)
+          +  target_include_directories(asio::asio INTERFACE ${ASIO_INCLUDE_DIR})
+          +else()
+          +  message(FATAL_ERROR "asio.hpp not found")
+          +endif()
+          EOF
+          sed -i 's/^          //' /home/builder/aports/testing/audio-share/fix-cmake.patch
+          chown builder:abuild /home/builder/aports/testing/audio-share/fix-cmake.patch
       - name: Create APKBUILD
-        run: |
-          cat << 'EOF' > /home/builder/aports/testing/as-cmd/APKBUILD
-pkgname=as-cmd
-pkgver=0.3.4
-pkgrel=0
-pkgdesc="Share system audio to Android devices via network"
-url="https://github.com/mkckr0/audio-share"
-arch="all"
-license="Apache-2.0"
-makedepends="cmake ninja build-base pkgconf pipewire-dev protobuf-dev protoc spdlog-dev cxxopts-dev asio-dev"
-source="audio-share-$pkgver.tar.gz::https://github.com/mkckr0/audio-share/archive/refs/tags/v$pkgver.tar.gz
-	fix-cmake.patch"
-builddir="$srcdir/audio-share-$pkgver/server-core"
-
-build() {
-	cmake -B build \
-		-G Ninja \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DAUDIO_SHARE_STATIC_LIBCPP=OFF
-	cmake --build build --target server-cmd
-}
-
-package() {
-	install -Dm755 build/as-cmd "$pkgdir"/usr/bin/as-cmd
-}
-EOF
-          chown builder:abuild /home/builder/aports/testing/as-cmd/*
-
+        run: "cat << 'EOF' > /home/builder/aports/testing/audio-share/APKBUILD\n# Maintainer: Nube <nubesu@tuta.io>\npkgname=audio-share\npkgver=0.3.4\npkgrel=0\npkgdesc=\"Share system audio to Android devices via network\"\nurl=\"https://github.com/mkckr0/audio-share\"\narch=\"x86_64\"\nlicense=\"Apache-2.0\"\nmakedepends=\"cmake ninja build-base pkgconf pipewire-dev protobuf-dev protoc spdlog-dev cxxopts-dev asio-dev\"\nsource=\"$pkgname-$pkgver.tar.gz::https://github.com/mkckr0/audio-share/archive/refs/tags/v$pkgver.tar.gz\n\tfix-cmake.patch\"\nbuilddir=\"$srcdir/$pkgname-$pkgver/server-core\"\n\nbuild() {\n\tcmake -B build \\\n\t\t-G Ninja \\\n\t\t-DCMAKE_BUILD_TYPE=Release \\\n\t\t-DAUDIO_SHARE_STATIC_LIBCPP=OFF\n\tcmake --build build --target server-cmd\n}\n\npackage() {\n\tinstall -Dm755 build/as-cmd \"$pkgdir\"/usr/bin/as-cmd\n}\nEOF\nsed -i 's/^          //' /home/builder/aports/testing/audio-share/APKBUILD\nchown builder:abuild /home/builder/aports/testing/audio-share/APKBUILD\n"
       - name: Build and Verify Aport
         shell: su builder -s /bin/sh {0}
         run: |
-          cd ~/aports/testing/as-cmd
+          cd ~/aports/testing/audio-share
           abuild-keygen -an
           abuild checksum
           abuild -r
-
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: as-cmd-aport-bundle
+          name: audio-share-aport-bundle
           path: |
-            /home/builder/aports/testing/as-cmd/APKBUILD
-            /home/builder/aports/testing/as-cmd/*.patch
-            /home/builder/packages/testing/**/as-cmd-*.apk
+            /home/builder/aports/testing/audio-share/APKBUILD
+            /home/builder/aports/testing/audio-share/*.patch
+            /home/builder/packages/testing/**/audio-share-*.apk
