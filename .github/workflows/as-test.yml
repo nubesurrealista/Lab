@@ -31,36 +31,29 @@ jobs:
 
       - name: Create Compatibility Patch
         run: |
-          python3 -c "
-          content = [
-              '--- a/server-core/CMakeLists.txt',
-              '+++ b/server-core/CMakeLists.txt',
-              '@@ -1,5 +1,8 @@',
-              ' cmake_minimum_required(VERSION 3.15)',
-              ' project(audio-share-server-core)',
-              '+',
-              '+set(protobuf_MODULE_COMPATIBLE TRUE)',
-              '+set(Protobuf_PROTOC_EXECUTABLE /usr/bin/protoc)',
-              ' ',
-              ' find_package(Threads REQUIRED)',
-              ' find_package(pipewire REQUIRED)',
-              '@@ -7,7 +10,13 @@',
-              ' find_package(spdlog CONFIG REQUIRED)',
-              ' find_package(cxxopts CONFIG REQUIRED)',
-              '-find_package(asio CONFIG REQUIRED)',
-              '+',
-              '+find_path(ASIO_INCLUDE_DIR NAMES asio.hpp)',
-              '+if(ASIO_INCLUDE_DIR)',
-              '+  add_library(asio::asio INTERFACE IMPORTED)',
-              '+  target_include_directories(asio::asio INTERFACE ${ASIO_INCLUDE_DIR})',
-              '+else()',
-              '+  message(FATAL_ERROR \"asio.hpp not found\")',
-              '+endif()'
-          ]
-          with open('/home/builder/aports/testing/audio-share/fix-cmake.patch', 'wb') as f:
-              for line in content:
-                  f.write(line.encode('ascii') + b'\r\n')
-          "
+          printf -- "---\ a/server-core/CMakeLists.txt\r\n" > /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+++\ b/server-core/CMakeLists.txt\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "@@ -1,5 +1,8 @@\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " cmake_minimum_required(VERSION 3.15)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " project(audio-share-server-core)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+set(protobuf_MODULE_COMPATIBLE TRUE)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+set(Protobuf_PROTOC_EXECUTABLE /usr/bin/protoc)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " \r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " find_package(Threads REQUIRED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " find_package(pipewire REQUIRED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "@@ -7,7 +10,13 @@\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " find_package(spdlog CONFIG REQUIRED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- " find_package(cxxopts CONFIG REQUIRED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "-find_package(asio CONFIG REQUIRED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+find_path(ASIO_INCLUDE_DIR NAMES asio.hpp)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+if(ASIO_INCLUDE_DIR)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+  add_library(asio::asio INTERFACE IMPORTED)\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+  target_include_directories(asio::asio INTERFACE \${ASIO_INCLUDE_DIR})\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+else()\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+  message(FATAL_ERROR \"asio.hpp not found\")\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
+          printf -- "+endif()\r\n" >> /home/builder/aports/testing/audio-share/fix-cmake.patch
           chown builder:abuild /home/builder/aports/testing/audio-share/fix-cmake.patch
 
       - name: Create APKBUILD
@@ -108,7 +101,7 @@ jobs:
           abuild -r
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: audio-share-aport-bundle
           path: |
