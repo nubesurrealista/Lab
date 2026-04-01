@@ -12,7 +12,9 @@ jobs:
           apk add git go build-base pkgconfig \
                   gtk+3.0-dev glib-dev cairo-dev \
                   pango-dev gdk-pixbuf-dev \
-                  xcur2png-dev librsvg-dev
+                  xcur2png librsvg-dev \
+                  at-spi2-core-dev fontconfig-dev \
+                  freetype-dev harfbuzz-dev zlib-dev
       - name: Clone nwg-look
         run: git clone https://github.com/nwg-piotr/nwg-look.git
       - name: Build binary
