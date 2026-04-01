@@ -1,0 +1,48 @@
+---
+name: Build nwg-look Alpine (musl)
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          apk update
+          apk add git go build-base pkgconfig \
+                  gtk+3.0-dev glib-dev cairo-dev \
+                  pango-dev gdk-pixbuf-dev \
+                  xcur2png-dev librsvg-dev
+      - name: Clone nwg-look
+        run: git clone https://github.com/nwg-piotr/nwg-look.git
+      - name: Build binary
+        run: |
+          cd nwg-look
+          go build \
+            -trimpath \
+            -buildmode=pie \
+            -mod=readonly \
+            -modcacherw \
+            -ldflags "-linkmode external" \
+            -o bin/nwg-look \
+            .
+      - name: Install to staging
+        run: |
+          cd nwg-look
+          mkdir -p ../install-staging
+          make DESTDIR=$PWD/../install-staging install
+      - name: Package binary and assets
+        run: |
+          mkdir -p package/usr/bin
+          mkdir -p package/usr/share
+          cp nwg-look/bin/nwg-look package/usr/bin/ 2>/dev/null || true
+          cp -r install-staging/usr/bin/* package/usr/bin/ 2>/dev/null || true
+          cp -r install-staging/usr/share/nwg-look package/usr/share/
+          cp -r install-staging/usr/share/applications package/usr/share/
+          cp -r install-staging/usr/share/pixmaps package/usr/share/ 2>/dev/null || true
+          tar -czf nwg-look-alpine.tar.gz -C package .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: nwg-look-bin
+          path: nwg-look-alpine.tar.gz
