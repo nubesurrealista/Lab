@@ -6,7 +6,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: alpine:latest
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+      XDG_RUNTIME_DIR: /tmp/runtime-root
+      UV_LINK_MODE: copy
     steps:
+      - name: Prepare runtime environment
+        shell: sh
+        run: |
+          mkdir -p /tmp/runtime-root
+          chmod 700 /tmp/runtime-root
       - name: Install System Dependencies
         shell: sh
         run: |
