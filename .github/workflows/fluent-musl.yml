@@ -19,7 +19,7 @@ jobs:
             hdrhistogram-c crc32c minizip libxshmfence build-base python3 xz
       - name: Clone Repository
         run: |
-          git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git .
+          git clone --branch fix-vulns --depth 1 https://github.com/FluentFlame/fluentflame-reader.git .
       - name: Install NPM Dependencies
         run: |
           npm install
