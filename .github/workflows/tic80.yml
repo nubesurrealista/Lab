@@ -1,15 +1,13 @@
+---
 name: Build TIC-80 PRO (v1.1.2837) on Alpine
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build-alpine:
     runs-on: ubuntu-latest
     container:
       image: alpine:latest
-      options: --user root
-
+      options: '--user root'
     steps:
       - name: Install build dependencies
         run: |
@@ -34,11 +32,9 @@ jobs:
             libxinerama-dev \
             libxrandr-dev \
             libxi-dev
-
       - name: Clone TIC-80 stable release v1.1.2837
         run: |
           git clone --recursive --branch v1.1.2837 https://github.com/nesbox/TIC-80.git
-
       - name: Configure CMake
         run: |
           mkdir -p TIC-80/build
@@ -49,12 +45,10 @@ jobs:
                 -DBUILD_WITH_ALL=On \
                 -DCMAKE_BUILD_TYPE=Release \
                 ..
-
       - name: Compile
         run: |
           cd TIC-80/build
           make -j$(nproc)
-
       - name: Locate and prepare final binary
         id: locate
         run: |
@@ -65,10 +59,8 @@ jobs:
           cp "$BINARY" ./tic80-pro-alpine-x11
           strip --strip-unneeded ./tic80-pro-alpine-x11
           echo "binary_path=./tic80-pro-alpine-x11" >> $GITHUB_OUTPUT
-
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: tic80-pro-alpine-x11
           path: ${{ steps.locate.outputs.binary_path }}
-          retention-days: 1

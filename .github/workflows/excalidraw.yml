@@ -1,12 +1,10 @@
+---
 name: Build Excalidraw Personal
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Clone Excalidraw Repository
         uses: actions/checkout@v6
@@ -14,17 +12,14 @@ jobs:
           repository: excalidraw/excalidraw
           path: excalidraw-source
           fetch-depth: 0
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 20
-
       - name: Install dependencies
         run: |
           cd excalidraw-source
           npm install
-
       - name: Build Application
         run: |
           cd excalidraw-source/excalidraw-app
@@ -32,7 +27,6 @@ jobs:
         env:
           VITE_APP_DISABLE_SENTRY: true
           VITE_APP_ENABLE_TRACKING: false
-
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v7
         with:

@@ -1,69 +1,55 @@
+---
 name: Compile LXPolkit (GTK2) for Alpine
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
     container: alpine:latest
-
     steps:
-    - name: Install dependencies
-      run: |
-        apk update
-        apk add --no-cache \
-          build-base \
-          intltool \
-          gtk+2.0-dev \
-          polkit-dev \
-          dbus-glib-dev \
-          libx11-dev \
-          automake \
-          autoconf \
-          libtool \
-          git \
-          tar \
-          vala \
-          gettext-dev
+      - name: Dependencies
+        run: |
+          apk update
+          apk add --no-cache \
+            build-base \
+            intltool \
+            gtk+2.0-dev \
+            polkit-dev \
+            dbus-glib-dev \
+            libx11-dev \
+            automake \
+            autoconf \
+            libtool \
+            git \
+            tar \
+            vala \
+            gettext-dev
+      - name: Source
+        run: git clone https://github.com/lxde/lxsession.git
+      - name: Build
+        run: |
+          cd lxsession
+          ./autogen.sh
+          ./configure \
+            --prefix=/usr \
+            --enable-gtk3=no \
+            --enable-buildin-polkit \
+            --disable-man
+          make -j$(nproc)
+      - name: Structure
+        run: |
+          mkdir -p export/usr/bin
+          mkdir -p export/usr/share/applications
+          mkdir -p export/usr/share/lxsession/ui
+          mkdir -p export/usr/share/locale
 
-    - name: Clone LXSession source
-      run: git clone https://github.com/lxde/lxsession.git
-
-    - name: Compile
-      run: |
-        cd lxsession
-        ./autogen.sh
-        ./configure \
-          --prefix=/usr \
-          --enable-gtk3=no \
-          --enable-buildin-polkit \
-          --disable-man
-        make -j$(nproc)
-
-    - name: Prepare Package
-      run: |
-        # Creamos la estructura exacta que espera el sistema
-        mkdir -p export/usr/bin
-        mkdir -p export/usr/share/applications
-        mkdir -p export/usr/share/lxsession/ui
-        mkdir -p export/usr/share/locale
-        
-        cd lxsession
-        # 1. Binario
-        cp lxpolkit/lxpolkit ../export/usr/bin/
-        
-        # 2. Archivo Desktop
-        cp data/lxpolkit.desktop ../export/usr/share/applications/
-        
-        # 3. ARCHIVOS UI (Esto es lo que faltaba para evitar los errores NULL)
-        cp data/ui/lxpolkit.ui ../export/usr/share/lxsession/ui/
-        
-        # 4. Traducciones
-        cp -r po/*.gmo ../export/usr/share/locale/ 2>/dev/null || true
-
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: lxpolkit-alpine-complete
-        path: export/
+          cd lxsession
+          cp lxpolkit/lxpolkit ../export/usr/bin/
+          cp data/lxpolkit.desktop ../export/usr/share/applications/
+          cp data/ui/lxpolkit.ui ../export/usr/share/lxsession/ui/
+          cp -r po/*.gmo ../export/usr/share/locale/ 2>/dev/null || true
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: lxpolkit-alpine-complete
+          path: export/

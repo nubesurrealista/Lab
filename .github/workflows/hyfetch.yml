@@ -1,7 +1,7 @@
+---
 name: Build Hyfetch with muslrust
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,14 +12,12 @@ jobs:
         with:
           repository: hykilpikonna/hyfetch
           path: hyfetch
-
       - name: Build
         shell: sh
         run: |
           cd hyfetch
           cargo build --release --all-features
           strip target/x86_64-unknown-linux-musl/release/hyfetch
-
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

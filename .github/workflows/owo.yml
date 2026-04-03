@@ -1,62 +1,52 @@
-name: Enviar archivo a Telegram
-
+---
+name: Telegram Upload
 on:
   workflow_dispatch:
     inputs:
       download_url:
-        description: 'Enlace directo al archivo a enviar (http/https)'
+        description: File URL
         required: true
         type: string
       filename:
-        description: 'Nombre deseado del archivo local (ej. archivo.zip)'
+        description: Filename
         required: true
         type: string
-
 jobs:
-  enviar_a_telegram:
+  upload:
     runs-on: ubuntu-latest
-
     steps:
-    - name: 🛠️ Instalar aria2 y verificar Docker
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y aria2
-        docker --version || (echo "Docker no está disponible" && exit 1)
-
-    - name: 📥 Descargar archivo con aria2
-      run: |
-        aria2c "${{ inputs.download_url }}" \
-          -o "${{ inputs.filename }}" \
-          --max-connection-per-server=4 \
-          --split=4 \
-          --enable-rpc=false
-        ls -lh "${{ inputs.filename }}"
-
-    - name: 🚀 Iniciar servidor Telegram Bot API en segundo plano
-      env:
-        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-      run: |
-        docker run -d --name telegram-bot-api \
-          -p 8081:8081 \
-          -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
-          -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
-          -e TELEGRAM_LOCAL=1 \
-          aiogram/telegram-bot-api:latest
-        echo "Esperando que el servidor esté listo..."
-        sleep 15
-
-    - name: 📤 Enviar archivo a Telegram
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-          -F chat_id=${TELEGRAM_CHAT_ID} \
-          -F caption="Archivo: '${{ inputs.filename }}'" \
-          -F document=@"${{ inputs.filename }}"
-
-    - name: 🧹 Detener y eliminar contenedor
-      run: |
-        docker stop telegram-bot-api
-        docker rm telegram-bot-api
+      - name: Setup
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2
+      - name: Fetch
+        run: |
+          aria2c "${{ inputs.download_url }}" \
+            -o "${{ inputs.filename }}" \
+            --max-connection-per-server=4 \
+            --split=4 \
+            --enable-rpc=false
+      - name: API Server
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          docker run -d --name tg-api \
+            -p 8081:8081 \
+            -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
+            -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
+            -e TELEGRAM_LOCAL=1 \
+            aiogram/telegram-bot-api:latest
+          sleep 15
+      - name: Push
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+            -F chat_id=${TELEGRAM_CHAT_ID} \
+            -F document=@"${{ inputs.filename }}"
+      - name: Cleanup
+        run: |
+          docker stop tg-api
+          docker rm tg-api

@@ -1,7 +1,7 @@
+---
 name: Build RetroArch (Offline Edition)
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build-ra:
     runs-on: ubuntu-latest
@@ -15,21 +15,20 @@ jobs:
                   libxinerama-dev libxxf86vm-dev libxkbcommon-dev \
                   libxml2-dev libusb-dev eudev-dev sdl2-dev \
                   libxv-dev mesa-gles
-
       - name: Build Optimized RetroArch
         env:
           CC: clang
           CXX: clang++
-          CFLAGS: -O3 -march=core2 -pipe -flto=thin
-          CXXFLAGS: -O3 -march=core2 -pipe -flto=thin
-          LDFLAGS: -fuse-ld=lld -flto=thin -Wl,--as-needed -Wl,--gc-sections
+          CFLAGS: '-O3 -march=core2 -pipe -flto=thin'
+          CXXFLAGS: '-O3 -march=core2 -pipe -flto=thin'
+          LDFLAGS: '-fuse-ld=lld -flto=thin -Wl,--as-needed -Wl,--gc-sections'
         run: |
           LATEST_RELEASE=$(curl -sL https://api.github.com/repos/libretro/RetroArch/releases/latest)
           ASSET_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | startswith("retroarch-sourceonly-") and endswith(".tar.xz")) | .browser_download_url')
           wget "$ASSET_URL" -O ra_source.tar.xz
           mkdir ra && tar -xvf ra_source.tar.xz -C ra --strip-components=1
           cd ra
-          
+
           ./configure --prefix=/usr \
                       --disable-debug --disable-vulkan --disable-wayland --disable-qt \
                       --disable-xmb --disable-ozone --enable-rgui --enable-xvideo \
@@ -37,10 +36,9 @@ jobs:
                       --disable-networking --disable-networkgamepad --disable-netplaydiscovery \
                       --disable-online_updater --disable-update_cores --disable-update_assets \
                       --disable-discord --disable-cheevos
-          
+
           make -j$(nproc)
           strip --strip-unneeded retroarch
-
       - name: Upload RetroArch Binary
         uses: actions/upload-artifact@v7
         with:

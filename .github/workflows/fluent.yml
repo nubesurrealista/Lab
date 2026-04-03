@@ -1,20 +1,17 @@
+---
 name: Manual Build Universal Flatpak
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build_flatpak:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
       - name: Setup Build Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder binutils
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
       - name: Build Official Debian Package
         run: |
           git clone --depth 1 https://github.com/FluentFlame/fluentflame-reader.git source-code
@@ -24,7 +21,6 @@ jobs:
           npm run package-deb
           find . -name "*.deb" -exec cp {} ../package.deb \;
           cd ..
-
       - name: Create Flatpak Manifest
         run: |
           cat <<EOF > org.fluentflame.Reader.yml
@@ -71,12 +67,10 @@ jobs:
                 - type: file
                   path: package.deb
           EOF
-
       - name: Build Flatpak Bundle
         run: |
           flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=repo build_dir org.fluentflame.Reader.yml
           flatpak build-bundle repo FluentFlame-Personal.flatpak org.fluentflame.Reader
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:

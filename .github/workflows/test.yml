@@ -1,7 +1,7 @@
+---
 name: Media Handler Task
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   stage:
     runs-on: ubuntu-latest
@@ -11,7 +11,6 @@ jobs:
           echo "::add-mask::${{ secrets.SOURCE_ENTRY }}"
           sudo apt update && sudo apt install -y aria2 ffmpeg zip parallel openvpn
           mkdir -p payload final
-
       - name: Download Media
         run: |
           if ! aria2c --seed-time=0 --dir=./payload --max-connection-per-server=16 \
@@ -30,11 +29,10 @@ jobs:
             sudo pkill openvpn
             echo "VPN finalizada tras descarga exitosa."
           fi
-          
+
           FILE_COUNT=$(find payload -type f | wc -l)
           echo "::add-mask::$FILE_COUNT"
           echo "Objetos en payload: $FILE_COUNT"
-
       - name: Process Media
         run: |
           process_file() {
@@ -55,16 +53,15 @@ jobs:
                    -c:a aac -b:a 128k -c:s copy \
                    "final/${BASE}_720p.mkv" > /dev/null 2>&1
           }
-          
+
           export -f process_file
-          
+
           find payload -type f | parallel --jobs $(nproc) process_file
-          
+
           rm -rf payload/*
           PROCESSED_COUNT=$(find final -type f | wc -l)
           echo "::add-mask::$PROCESSED_COUNT"
           echo "Tarea completada. Disponibles: $PROCESSED_COUNT"
-
       - name: Zip Processed Files
         run: |
           if [ -z "$(ls -A final)" ]; then
@@ -72,10 +69,8 @@ jobs:
           fi
           cd final && zip -P "${{ secrets.ZIP_PASSWORD }}" -r ../test.zip . > /dev/null 2>&1
           cd .. && rm -rf final
-
       - name: Upload Processed Bundle
         uses: actions/upload-artifact@v7
         with:
           name: processed-bundle
           path: test.zip
-          retention-days: 1

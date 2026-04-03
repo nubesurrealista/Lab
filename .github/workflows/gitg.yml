@@ -1,81 +1,73 @@
-name: Enviar artefacto Telegram
-
+---
+name: Artifact Telegram Dispatch
 on:
   workflow_dispatch:
     inputs:
       external_repo:
-        description: 'Repositorio externo (ej. usuario/proyecto)'
+        description: External repository (user/project)
         required: true
         type: string
       run_id:
-        description: 'ID del run que generó el artefacto'
+        description: Workflow run ID
         required: true
         type: string
       artifact_name:
-        description: 'Nombre exacto del artefacto'
+        description: Artifact name
         required: true
         type: string
-
 jobs:
-  enviar:
+  dispatch:
     runs-on: ubuntu-latest
-
     steps:
-    - name: 🛠 Instalar jq y verificar Docker
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq
-        docker --version || (echo "Docker no está disponible" && exit 1)
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          docker --version || (echo "Docker engine not found" && exit 1)
+      - name: Locate artifact
+        id: find
+        run: |
+          curl -s -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
+            "https://api.github.com/repos/${{ inputs.external_repo }}/actions/runs/${{ inputs.run_id }}/artifacts" \
+            > artifacts.json
 
-    - name: 🔍 Buscar artefacto
-      id: buscar
-      run: |
-        curl -s -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
-          "https://api.github.com/repos/${{ inputs.external_repo }}/actions/runs/${{ inputs.run_id }}/artifacts" \
-          > artifacts.json
+          ARTIFACT_ID=$(jq -r '.artifacts[] | select(.name == "'${{ inputs.artifact_name }}'") | .id' artifacts.json)
 
-        ARTIFACT_ID=$(jq -r '.artifacts[] | select(.name == "'${{ inputs.artifact_name }}'") | .id' artifacts.json)
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
+            echo "Artifact not found"
+            exit 1
+          fi
 
-        if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
-          echo "❌ Artefacto no encontrado, abortando"
-          exit 1
-        fi
-
-        echo "artifact_id=$ARTIFACT_ID" >> $GITHUB_OUTPUT
-
-    - name: 📦 Descargar artefacto ZIP
-      run: |
-        ARTIFACT_ID="${{ steps.buscar.outputs.artifact_id }}"
-        curl -L -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
-          "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
-          -o full_artifact.zip
-        ls -lh full_artifact.zip
-
-    - name: 🚀 Iniciar servidor Telegram Bot API en segundo plano
-      env:
-        TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-        TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-      run: |
-        docker run -d --name telegram-bot-api \
-          -p 8081:8081 \
-          -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
-          -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
-          -e TELEGRAM_LOCAL=1 \
-          aiogram/telegram-bot-api:latest
-        echo "Esperando que el servidor esté listo..."
-        sleep 15
-
-    - name: 📤 Enviar artefacto a Telegram
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-          -F chat_id=${TELEGRAM_CHAT_ID} \
-          -F caption="📦 Artefacto completo: '${{ inputs.artifact_name }}'" \
-          -F document=@full_artifact.zip
-
-    - name: 🧹 Detener y eliminar contenedor
-      run: |
-        docker stop telegram-bot-api
-        docker rm telegram-bot-api
+          echo "artifact_id=$ARTIFACT_ID" >> $GITHUB_OUTPUT
+      - name: Download
+        run: |
+          ARTIFACT_ID="${{ steps.find.outputs.artifact_id }}"
+          curl -L -H "Authorization: token ${{ secrets.GH_PAT_CROSS }}" \
+            "https://api.github.com/repos/${{ inputs.external_repo }}/actions/artifacts/$ARTIFACT_ID/zip" \
+            -o full_artifact.zip
+          ls -lh full_artifact.zip
+      - name: API Server
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          docker run -d --name tg-api \
+            -p 8081:8081 \
+            -e TELEGRAM_API_ID=${TELEGRAM_API_ID} \
+            -e TELEGRAM_API_HASH=${TELEGRAM_API_HASH} \
+            -e TELEGRAM_LOCAL=1 \
+            aiogram/telegram-bot-api:latest
+          sleep 15
+      - name: Push
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "http://localhost:8081/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+            -F chat_id=${TELEGRAM_CHAT_ID} \
+            -F caption="Artifact: ${{ inputs.artifact_name }}" \
+            -F document=@full_artifact.zip
+      - name: Cleanup
+        run: |
+          docker stop tg-api
+          docker rm tg-api

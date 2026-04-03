@@ -1,8 +1,7 @@
+---
 name: Build Audio Share server-core on Alpine musl
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,20 +22,17 @@ jobs:
             spdlog-dev \
             cxxopts-dev \
             asio-dev
-
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           repository: mkckr0/audio-share
           submodules: recursive
-
       - name: Patch CMakeLists.txt for Alpine
         run: |
           cd server-core
           printf 'set(protobuf_MODULE_COMPATIBLE TRUE)\nset(Protobuf_PROTOC_EXECUTABLE /usr/bin/protoc)\n\n' | cat - CMakeLists.txt > CMakeLists.txt.tmp && mv CMakeLists.txt.tmp CMakeLists.txt
           printf '\nfind_path(ASIO_INCLUDE_DIR NAMES asio.hpp)\nif(ASIO_INCLUDE_DIR)\n  add_library(asio::asio INTERFACE IMPORTED)\n  target_include_directories(asio::asio INTERFACE ${ASIO_INCLUDE_DIR})\nelse()\n  message(FATAL_ERROR "asio.hpp not found")\nendif()\n' >> CMakeLists.txt
           sed -i '/find_package(asio CONFIG REQUIRED)/d' CMakeLists.txt
-
       - name: Configure and build
         run: |
           cd server-core
@@ -46,14 +42,12 @@ jobs:
             -DAUDIO_SHARE_STATIC_LIBCPP=ON
 
           cmake --build build --target server-cmd -j$(nproc)
-
       - name: Verify binary
         run: |
           cd server-core
           ls -lh build/as-cmd
           file build/as-cmd
           ldd build/as-cmd || echo "Binary ready"
-
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

@@ -1,8 +1,7 @@
+---
 name: Build doukutsu-rs with musl
-
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: null
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,22 +12,19 @@ jobs:
         with:
           repository: doukutsu-rs/doukutsu-rs
           path: doukutsu-rs
-
       - name: Install dependencies
         shell: sh
         run: |
           apk update
           apk add build-base rust cargo git cmake pkgconf alsa-lib-dev eudev-dev mesa-dev libxext-dev wayland-dev libxkbcommon-dev libdecor-dev
-
       - name: Build
         shell: sh
         env:
-          DRS_BUILD_VERSION_OVERRIDE: "0.102.0-musl"
+          DRS_BUILD_VERSION_OVERRIDE: 0.102.0-musl
         run: |
           cd doukutsu-rs
           cargo build --release --locked --bin doukutsu-rs
           strip target/release/doukutsu-rs
-
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
